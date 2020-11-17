@@ -20,7 +20,7 @@ int handleParameters();
 std::vector<Point> generatePoints(const std::string& filePath);
 
 //Optimized calculation functions
-std::vector<Point> calculateHull(std::vector<Point> & points);
+std::vector<Point> calculateHull(std::vector<Point>& points);
 
 //Visual calculation functions
 void startVisualCalculation();
@@ -31,9 +31,9 @@ void VisualCalculationFinished();
 void (*nextVisualCalculationStep)();
 
 //Display functions
-void displayPoint(const Point& p , const sf::Color& color,  sf::RenderWindow& window);
-void displayPoints(const std::vector<Point>& points, const  sf::Color& color,  sf::RenderWindow& window);
-void displayHull(const std::vector<Point>& points, const sf::Color& color,  sf::RenderWindow& window);
+void displayPoint(const Point& p, const sf::Color& color, sf::RenderWindow& window);
+void displayPoints(const std::vector<Point>& points, const  sf::Color& color, sf::RenderWindow& window);
+void displayHull(const std::vector<Point>& points, const sf::Color& color, sf::RenderWindow& window);
 void displayLine(const Point& a, const Point& b, const sf::Color& color, sf::RenderWindow& window);
 
 
@@ -51,7 +51,7 @@ const sf::Color WorkingLineColor = sf::Color::Blue;
 
 //global geometry information variables (need to be global because of visual steps)
 std::vector<Point> hull;
-std::vector<Point> points; 
+std::vector<Point> points;
 //only used by visual calculation:
 int currentIndex = 0;
 std::vector<Point> workingLine;
@@ -62,7 +62,7 @@ int main()
 	int parameterExit = handleParameters();
 	if (parameterExit != 0) {
 		return parameterExit;
-	} 
+	}
 	points = generatePoints(filePath);
 
 
@@ -80,15 +80,15 @@ int main()
 
 		if (visualMode) {
 			if (firstLoop) {
-				startVisualCalculation(); 
+				startVisualCalculation();
 				firstLoop = false;
 			}
 			nextVisualCalculationStep();
 			displayHull(hull, HullColor, window);
 			if (!workingLine.empty()) {
-				displayLine(workingLine[0],workingLine[1],WorkingLineColor, window);
+				displayLine(workingLine[0], workingLine[1], WorkingLineColor, window);
 			}
-			if (!errorLine	.empty()) {
+			if (!errorLine.empty()) {
 				displayLine(errorLine[0], errorLine[1], ErrorLineColor, window);
 			}
 			displayPoints(points, PointColor, window);
@@ -103,7 +103,7 @@ int main()
 				hull = calculateHull(points);
 				auto end = std::chrono::high_resolution_clock::now();
 				std::cout << "Time: " << (std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()) << " microseconds" << std::endl;
-				
+
 			}
 			displayHull(hull, HullColor, window);
 			displayPoints(points, PointColor, window);
@@ -115,7 +115,7 @@ int main()
 
 
 #pragma region Setup Functions
-int handleParameters() 
+int handleParameters()
 {
 	//TODO: handle commandline arguments
 	return 0;
@@ -134,7 +134,7 @@ std::vector<Point> generatePoints(const std::string& filePath)
 #pragma endregion
 
 #pragma region Optimized Hull Calculation
-std::vector<Point> calculateHull(std::vector<Point> & points)
+std::vector<Point> calculateHull(std::vector<Point>& points)
 {
 	//TODO: calculate Hull
 	return points;
@@ -178,7 +178,7 @@ void VisualCalculationFinished() {}
 void displayPoint(const Point& p, const sf::Color& color, sf::RenderWindow& window) {
 	sf::CircleShape point(POINTRADIUS);
 	point.setFillColor(color);
-	point.setPosition(p.X-POINTRADIUS, p.Y - POINTRADIUS);
+	point.setPosition(p.X - POINTRADIUS, p.Y - POINTRADIUS);
 	window.draw(point);
 }
 void displayPoints(const std::vector<Point>& points, const  sf::Color& color, sf::RenderWindow& window)
