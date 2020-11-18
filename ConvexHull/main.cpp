@@ -15,20 +15,33 @@ public:
 	Point() :X(0), Y(0) {}
 };
 
+struct Node {
+	Node* clockwiseNext=nullptr;
+	Node* counterclockNext=nullptr;
+	Point point;
+	Node(Point p):point(p){}
+	Node(int x, int y):point(x,y){}
+};
+
+struct LinkedList {
+	Node* head = nullptr;
+	Node* tail = nullptr;
+	Node* left = nullptr;
+	Node* right = nullptr;
+	void pushBack(Node* n) {};
+	void pushFront(Node* n) {};
+};
+
 //Setup functions
 int handleParameters();
 std::vector<Point> generatePoints(const std::string& filePath);
 
 //Optimized calculation functions
 std::vector<Point> calculateHull(std::vector<Point>& points);
-
+LinkedList merge(LinkedList left, LinkedList right);
 //Visual calculation functions
-void startVisualCalculation();
-//Debug step to test proof of concept
-void addNextPointToHull();
-void FinishVisualCalculation();
-void VisualCalculationFinished();
-void (*nextVisualCalculationStep)();
+std::vector<Point> calculateVisualHull(std::vector<Point>& points, sf::RenderWindow& window);
+LinkedList mergeVisual(LinkedList left, LinkedList right);
 
 //Display functions
 void displayPoint(const Point& p, const sf::Color& color, sf::RenderWindow& window);
@@ -41,7 +54,7 @@ void displayLine(const Point& a, const Point& b, const sf::Color& color, sf::Ren
 //variable that should be read from commandline arguments
 bool visualMode = true;
 std::string filePath = "";
-int pointAmount = 4;
+int pointAmount = 10;
 
 //colors
 const sf::Color HullColor = sf::Color::Green;
@@ -49,13 +62,6 @@ const sf::Color PointColor = sf::Color::Black;
 const sf::Color ErrorLineColor = sf::Color::Red;
 const sf::Color WorkingLineColor = sf::Color::Blue;
 
-//global geometry information variables (need to be global because of visual steps)
-std::vector<Point> hull;
-std::vector<Point> points;
-//only used by visual calculation:
-int currentIndex = 0;
-std::vector<Point> workingLine;
-std::vector<Point> errorLine;
 
 int main()
 {
@@ -63,8 +69,9 @@ int main()
 	if (parameterExit != 0) {
 		return parameterExit;
 	}
-	points = generatePoints(filePath);
 
+	std::vector<Point>points = generatePoints(filePath);
+	std::vector<Point>hull;
 
 	bool firstLoop = true;
 	sf::RenderWindow window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGTH), "Divide and Conquer");
@@ -80,21 +87,14 @@ int main()
 
 		if (visualMode) {
 			if (firstLoop) {
-				startVisualCalculation();
+				hull = calculateVisualHull(points, window);
 				firstLoop = false;
 			}
-			nextVisualCalculationStep();
-			displayHull(hull, HullColor, window);
-			if (!workingLine.empty()) {
-				displayLine(workingLine[0], workingLine[1], WorkingLineColor, window);
+			else {
+				displayHull(hull, HullColor, window);
+				displayPoints(points, PointColor, window); 
+				window.display();
 			}
-			if (!errorLine.empty()) {
-				displayLine(errorLine[0], errorLine[1], ErrorLineColor, window);
-			}
-			displayPoints(points, PointColor, window);
-			window.display();
-			//TODO: remove magic number
-			std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 		}
 		else {
 			if (firstLoop) {
@@ -110,7 +110,6 @@ int main()
 			window.display();
 		}
 	}
-	return 0;
 }
 
 
@@ -142,36 +141,21 @@ std::vector<Point> calculateHull(std::vector<Point>& points)
 #pragma endregion
 
 #pragma region Visual Hull Calculation
-void startVisualCalculation()
+std::vector<Point> calculateVisualHull(std::vector<Point>& points, sf::RenderWindow& window)
 {
-	//TODO: define actual steps
-	nextVisualCalculationStep = &addNextPointToHull;
-}
-
-//Debug step to test proof of concept
-void addNextPointToHull() {
-	if (currentIndex < points.size()) {
-		errorLine.clear();
-		workingLine.clear();
-		hull.push_back(points[currentIndex]);
-		if (currentIndex < points.size() - 1) {
-			workingLine.push_back(points[currentIndex]);
-			workingLine.push_back(points[currentIndex + 1]);
-		}
-		currentIndex++;
+	std::vector<Point>hull;
+	//TODO: calculate Hull
+	for (auto p : points) {
+		hull.push_back(p);
+		window.clear(sf::Color::White);
+		displayHull(hull, HullColor, window);
+		displayPoints(points, PointColor, window);
+		window.display();
+		//TODO: remove magic number
+		std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 	}
-	else {
-		nextVisualCalculationStep = &FinishVisualCalculation;
-	}
+	return hull;
 }
-
-
-void FinishVisualCalculation() {
-	errorLine.clear();
-	workingLine.clear();
-	nextVisualCalculationStep = &VisualCalculationFinished;
-}
-void VisualCalculationFinished() {}
 #pragma endregion
 
 #pragma region Display Functions
@@ -183,7 +167,7 @@ void displayPoint(const Point& p, const sf::Color& color, sf::RenderWindow& wind
 }
 void displayPoints(const std::vector<Point>& points, const  sf::Color& color, sf::RenderWindow& window)
 {
-	for (auto p : points) {
+	for (auto& p : points) {
 		displayPoint(p, color, window);
 	}
 }
@@ -194,6 +178,7 @@ void displayHull(const std::vector<Point>& points, const sf::Color& color, sf::R
 	}
 	displayLine(points[points.size() - 1], points[0], color, window);
 }
+
 void displayLine(const Point& a, const Point& b, const sf::Color& color, sf::RenderWindow& window)
 {
 	sf::Vertex line[] =
