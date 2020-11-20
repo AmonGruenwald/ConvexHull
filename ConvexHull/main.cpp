@@ -23,9 +23,7 @@ struct Node {
 	Node(int x, int y):point(x,y){}
 };
 
-struct LinkedList {
-	Node* head = nullptr;
-	Node* tail = nullptr;
+struct Hull {
 	Node* left = nullptr;
 	Node* right = nullptr;
 	void pushBack(Node* n) {};
@@ -37,18 +35,18 @@ int handleParameters();
 std::vector<Point> generatePoints(const std::string& filePath);
 
 //Optimized calculation functions
-LinkedList calculateHull(std::vector<Point>& points);
-LinkedList merge(LinkedList left, LinkedList right);
-std::pair<Node*, Node*> findLowerTangentOfHulls(LinkedList left, LinkedList right);
-std::pair<Node*, Node*> findUpperTangentOfHulls(LinkedList left, LinkedList right);
-bool isUpperTangentOfHull(Point a, Point b, LinkedList hull);
+Hull calculateHull(std::vector<Point>& points);
+Hull merge(Hull left, Hull right);
+std::pair<Node*, Node*> findLowerTangentOfHulls(Hull left, Hull right);
+std::pair<Node*, Node*> findUpperTangentOfHulls(Hull left, Hull right);
+bool isUpperTangentOfHull(Point a, Point b, Hull hull);
 
 //Visual calculation functions
-LinkedList calculateVisualHull(std::vector<Point>& points, sf::RenderWindow& window);
-LinkedList mergeVisual(LinkedList left, LinkedList right, sf::RenderWindow& window);
-std::pair<Node*, Node*> visualFindLowerTangentOfHulls(LinkedList left, LinkedList right, sf::RenderWindow& window, std::pair<Node*, Node*> upperTangent);
-std::pair<Node*, Node*> visualFindUpperTangentOfHulls(LinkedList left, LinkedList right, sf::RenderWindow& window);
-bool visualIsUpperTangentOfHull(Point a, Point b, LinkedList hull, sf::RenderWindow& window);
+Hull calculateVisualHull(std::vector<Point>& points, sf::RenderWindow& window);
+Hull mergeVisual(Hull left, Hull right, sf::RenderWindow& window);
+std::pair<Node*, Node*> visualFindLowerTangentOfHulls(Hull left, Hull right, sf::RenderWindow& window, std::pair<Node*, Node*> upperTangent);
+std::pair<Node*, Node*> visualFindUpperTangentOfHulls(Hull left, Hull right, sf::RenderWindow& window);
+bool visualIsUpperTangentOfHull(Point a, Point b, Hull hull, sf::RenderWindow& window);
 
 //Utility functions
 bool isPointLeftOfLine(Point a, Point b, Point p);
@@ -56,7 +54,7 @@ bool isPointLeftOfLine(Point a, Point b, Point p);
 //Display functions
 void displayPoint(const Point& p, const sf::Color& color, sf::RenderWindow& window);
 void displayPoints(const std::vector<Point>& points, const  sf::Color& color, sf::RenderWindow& window);
-void displayHull(const LinkedList& hull, const sf::Color& color, sf::RenderWindow& window);
+void displayHull(const Hull& hull, const sf::Color& color, sf::RenderWindow& window);
 void displayLine(const Point& a, const Point& b, const sf::Color& color, sf::RenderWindow& window);
 
 
@@ -179,7 +177,7 @@ int main()
 	points = generatePoints(filePath);
 	
 	bool firstLoop = true; 
-	LinkedList hull;
+	Hull hull;
 
 	sf::RenderWindow window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGTH), "Divide and Conquer");
 
@@ -232,15 +230,15 @@ std::vector<Point> generatePoints(const std::string& filePath)
 #pragma endregion
 
 #pragma region Optimized Hull Calculation
-LinkedList calculateHull(std::vector<Point>& points)
+Hull calculateHull(std::vector<Point>& points)
 {
 	//TODO: calculate Hull
-	LinkedList hull;
+	Hull hull;
 	return hull;
 }
 
-LinkedList merge(LinkedList left, LinkedList right) {
-	LinkedList newHull;
+Hull merge(Hull left, Hull right) {
+	Hull newHull;
 	auto upperTangent = findUpperTangentOfHulls(left, right);
 	auto lowerTangent = findLowerTangentOfHulls(left, right);
 
@@ -257,7 +255,7 @@ LinkedList merge(LinkedList left, LinkedList right) {
 	return newHull;
 }
 
-std::pair<Node*, Node*> findLowerTangentOfHulls(LinkedList left, LinkedList right) {
+std::pair<Node*, Node*> findLowerTangentOfHulls(Hull left, Hull right) {
 	auto a = left.right;
 	auto b = right.left;
 
@@ -279,7 +277,7 @@ std::pair<Node*, Node*> findLowerTangentOfHulls(LinkedList left, LinkedList righ
 	return std::pair<Node*, Node*>(a, b);
 }
 
-std::pair<Node*, Node*> findUpperTangentOfHulls(LinkedList left, LinkedList right) {
+std::pair<Node*, Node*> findUpperTangentOfHulls(Hull left, Hull right) {
 	auto a = left.right;
 	auto b = right.left;
 
@@ -300,7 +298,7 @@ std::pair<Node*, Node*> findUpperTangentOfHulls(LinkedList left, LinkedList righ
 	return std::pair<Node*, Node*>(a, b);
 }
 
-bool isUpperTangentOfHull(Point a, Point b, LinkedList hull) {
+bool isUpperTangentOfHull(Point a, Point b, Hull hull) {
 	auto currentPoint = hull.left;
 	do {
 		if (isPointLeftOfLine(a, b, currentPoint->point)) {
@@ -314,14 +312,14 @@ bool isUpperTangentOfHull(Point a, Point b, LinkedList hull) {
 
 //TODO: refactor visual stuff hard
 #pragma region Visual Hull Calculation
-LinkedList calculateVisualHull(std::vector<Point>& points, sf::RenderWindow& window)
+Hull calculateVisualHull(std::vector<Point>& points, sf::RenderWindow& window)
 {
 	//TODO: calculate Hull
-	LinkedList hull;
+	Hull hull;
 	return hull;
 }
 
-LinkedList mergeVisual(LinkedList left, LinkedList right, sf::RenderWindow& window) {
+Hull mergeVisual(Hull left, Hull right, sf::RenderWindow& window) {
 	
 	
 	window.clear(sf::Color::White);
@@ -331,7 +329,7 @@ LinkedList mergeVisual(LinkedList left, LinkedList right, sf::RenderWindow& wind
 	window.display();
 	std::this_thread::sleep_for(std::chrono::milliseconds(animationStepTime));
 
-	LinkedList newHull;
+	Hull newHull;
 	auto upperTangent = visualFindUpperTangentOfHulls(left, right, window);
 
 	window.clear(sf::Color::White);
@@ -381,7 +379,7 @@ LinkedList mergeVisual(LinkedList left, LinkedList right, sf::RenderWindow& wind
 	return newHull;
 }
 
-std::pair<Node*, Node*> visualFindLowerTangentOfHulls(LinkedList left, LinkedList right, sf::RenderWindow& window, std::pair<Node*, Node*> upperTangent) {
+std::pair<Node*, Node*> visualFindLowerTangentOfHulls(Hull left, Hull right, sf::RenderWindow& window, std::pair<Node*, Node*> upperTangent) {
 	auto a = left.right;
 	auto b = right.left;
 
@@ -487,7 +485,7 @@ std::pair<Node*, Node*> visualFindLowerTangentOfHulls(LinkedList left, LinkedLis
 	return std::pair<Node*, Node*>(a, b);
 }
 
-std::pair<Node*, Node*> visualFindUpperTangentOfHulls(LinkedList left, LinkedList right, sf::RenderWindow& window) {
+std::pair<Node*, Node*> visualFindUpperTangentOfHulls(Hull left, Hull right, sf::RenderWindow& window) {
 	auto a = left.right;
 	auto b = right.left;
 
@@ -588,7 +586,7 @@ std::pair<Node*, Node*> visualFindUpperTangentOfHulls(LinkedList left, LinkedLis
 	return std::pair<Node*, Node*>(a, b);
 }
 
-bool visualIsUpperTangentOfHull(Point a, Point b, LinkedList hull, sf::RenderWindow& window) {
+bool visualIsUpperTangentOfHull(Point a, Point b, Hull hull, sf::RenderWindow& window) {
 	auto currentPoint = hull.left;
 	bool upper = true;
 	do {
@@ -627,7 +625,7 @@ void displayPoints(const std::vector<Point>& points, const  sf::Color& color, sf
 		displayPoint(p, color, window);
 	}
 }
-void displayHull(const LinkedList& hull, const sf::Color& color, sf::RenderWindow& window)
+void displayHull(const Hull& hull, const sf::Color& color, sf::RenderWindow& window)
 {
 	auto currentNode = hull.left;
 	if (currentNode != nullptr) {
