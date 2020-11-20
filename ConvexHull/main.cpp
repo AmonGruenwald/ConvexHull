@@ -165,8 +165,7 @@ private:
 #pragma endregion
 };
 
-
-
+#pragma region Function declarations
 //Setup functions
 int handleParameters();
 std::vector<Point> generatePoints(const std::string& filePath);
@@ -187,8 +186,9 @@ bool visualIsUpperTangentOfHull(Line tangent, Hull hull, Scene& scene);
 
 //Utility functions
 bool isPointLeftOfLine(Line line, Node* point);
+#pragma endregion
 
-//variable that should be read from commandline arguments
+//variables that should be read from commandline arguments
 bool visualMode = true;
 std::string filePath = "";
 int pointAmount = 10;
