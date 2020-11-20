@@ -30,6 +30,9 @@ struct Hull {
 	void pushFront(Node* n) {};
 };
 
+typedef std::pair<Node*, Node*> Line;
+
+
 //Setup functions
 int handleParameters();
 std::vector<Point> generatePoints(const std::string& filePath);
@@ -37,25 +40,25 @@ std::vector<Point> generatePoints(const std::string& filePath);
 //Optimized calculation functions
 Hull calculateHull(std::vector<Point>& points);
 Hull merge(Hull left, Hull right);
-std::pair<Node*, Node*> findLowerTangentOfHulls(Hull left, Hull right);
-std::pair<Node*, Node*> findUpperTangentOfHulls(Hull left, Hull right);
-bool isUpperTangentOfHull(Point a, Point b, Hull hull);
+Line findLowerTangentOfHulls(Hull left, Hull right);
+Line findUpperTangentOfHulls(Hull left, Hull right);
+bool isUpperTangentOfHull(Line tangent, Hull hull);
 
 //Visual calculation functions
 Hull calculateVisualHull(std::vector<Point>& points, sf::RenderWindow& window);
 Hull mergeVisual(Hull left, Hull right, sf::RenderWindow& window);
-std::pair<Node*, Node*> visualFindLowerTangentOfHulls(Hull left, Hull right, sf::RenderWindow& window, std::pair<Node*, Node*> upperTangent);
-std::pair<Node*, Node*> visualFindUpperTangentOfHulls(Hull left, Hull right, sf::RenderWindow& window);
-bool visualIsUpperTangentOfHull(Point a, Point b, Hull hull, sf::RenderWindow& window);
+Line visualFindLowerTangentOfHulls(Hull left, Hull right, sf::RenderWindow& window, Line upperTangent);
+Line visualFindUpperTangentOfHulls(Hull left, Hull right, sf::RenderWindow& window);
+bool visualIsUpperTangentOfHull(Line tangent, Hull hull, sf::RenderWindow& window);
 
 //Utility functions
-bool isPointLeftOfLine(Point a, Point b, Point p);
+bool isPointLeftOfLine(Line line, Node* point);
 
 //Display functions
 void displayPoint(const Point& p, const sf::Color& color, sf::RenderWindow& window);
 void displayPoints(const std::vector<Point>& points, const  sf::Color& color, sf::RenderWindow& window);
 void displayHull(const Hull& hull, const sf::Color& color, sf::RenderWindow& window);
-void displayLine(const Point& a, const Point& b, const sf::Color& color, sf::RenderWindow& window);
+void displayLine(const Line& line, const sf::Color& color, sf::RenderWindow& window);
 
 
 
@@ -71,7 +74,7 @@ const sf::Color CorrectColor = sf::Color::Green;
 const sf::Color WorkingColor = sf::Color::Blue;
 const sf::Color SecondaryWorkingColor = sf::Color::Cyan;
 
-const int animationStepTime = 1000;
+const int animationStepTime = 10;
 
 std::vector<Point>points;
 
@@ -80,9 +83,9 @@ std::vector<Point>points;
 int main()
 {
 	Point a1(100, 100);
-	Point a2(150, 150);
+	Point a2(150, 50);
 	Point a3(200, 100);
-	Point a4(150, 50);
+	Point a4(150, 150);
 
 
 	points.push_back(a1);
@@ -108,14 +111,14 @@ int main()
 	aNode4->clockwiseNext = aNode1;
 	aNode4->counterclockNext = aNode3;
 
-	LinkedList aHull;
+	Hull aHull;
 	aHull.left = aNode1;
 	aHull.right = aNode3;
 
 	Point b1(300, 150);
-	Point b2(350, 200);
+	Point b2(350, 100);
 	Point b3(400, 150);
-	Point b4(350, 100);
+	Point b4(350, 200);
 
 	std::vector<Point> bPoints;
 
@@ -141,14 +144,13 @@ int main()
 	bNode4->clockwiseNext = bNode1;
 	bNode4->counterclockNext = bNode3;
 
-	LinkedList bHull;
+	Hull bHull;
 	bHull.left = bNode1;
 	bHull.right = bNode3;
 
 	sf::RenderWindow window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGTH), "Divide and Conquer");
 
 	auto newHull = mergeVisual(aHull, bHull, window);
-
 	while (window.isOpen())
 	{
 		sf::Event event;
@@ -165,7 +167,6 @@ int main()
 	}
 }
 */
-
 
 int main()
 {
@@ -246,8 +247,8 @@ Hull merge(Hull left, Hull right) {
 	newHull.right = right.right;
 
 	//TODO: Delete Points that get removed
-	upperTangent.first->clockwiseNext = upperTangent.second;
-	upperTangent.second->counterclockNext = upperTangent.first;
+	upperTangent.first->counterclockNext = upperTangent.second;
+	upperTangent.second->clockwiseNext = upperTangent.first;
 
 	lowerTangent.first->counterclockNext = lowerTangent.second;
 	lowerTangent.second->clockwiseNext = lowerTangent.first;
@@ -255,53 +256,49 @@ Hull merge(Hull left, Hull right) {
 	return newHull;
 }
 
-std::pair<Node*, Node*> findLowerTangentOfHulls(Hull left, Hull right) {
-	auto a = left.right;
-	auto b = right.left;
-
-	bool isLowerTangentOfLeft = isUpperTangentOfHull(b->point, a->point, left);
-	bool isLowerTangentOfRight = isUpperTangentOfHull(b->point, a->point, right);
+Line findLowerTangentOfHulls(Hull left, Hull right) {
+	Line lowerTangent(right.left, left.right);
+	bool isLowerTangentOfLeft = isUpperTangentOfHull(lowerTangent, left);
+	bool isLowerTangentOfRight = isUpperTangentOfHull(lowerTangent, right);
 	while (!isLowerTangentOfLeft || !isLowerTangentOfRight) {
 		while (!isLowerTangentOfLeft) {
-			a = a->clockwiseNext;
-			isLowerTangentOfLeft = isUpperTangentOfHull(b->point, a->point, left);
+			lowerTangent.second = lowerTangent.second->clockwiseNext;
+			isLowerTangentOfLeft = isUpperTangentOfHull(lowerTangent, left);
 		}
-		isLowerTangentOfRight = isUpperTangentOfHull(b->point, a->point, right);
+		isLowerTangentOfRight = isUpperTangentOfHull(lowerTangent, right);
 
 		while (!isLowerTangentOfRight) {
-			b = b->counterclockNext;
-			isLowerTangentOfRight = isUpperTangentOfHull(b->point, a->point, right);
+			lowerTangent.first = lowerTangent.first->counterclockNext;
+			isLowerTangentOfRight = isUpperTangentOfHull(lowerTangent, right);
 		}
-		isLowerTangentOfLeft = isUpperTangentOfHull(b->point, a->point, left);
+		isLowerTangentOfLeft = isUpperTangentOfHull(lowerTangent, left);
 	}
-	return std::pair<Node*, Node*>(a, b);
+	return lowerTangent;
 }
 
-std::pair<Node*, Node*> findUpperTangentOfHulls(Hull left, Hull right) {
-	auto a = left.right;
-	auto b = right.left;
-
-	bool isUpperTangentOfLeft = isUpperTangentOfHull(a->point, b->point, left);
-	bool isUpperTangentOfRight = isUpperTangentOfHull(a->point, b->point, right);
+Line findUpperTangentOfHulls(Hull left, Hull right) {
+	Line upperTangent(left.right, right.left);
+	bool isUpperTangentOfLeft = isUpperTangentOfHull(upperTangent, left);
+	bool isUpperTangentOfRight = isUpperTangentOfHull(upperTangent, right);
 	while (!isUpperTangentOfLeft || !isUpperTangentOfRight) {
 		while (!isUpperTangentOfLeft) {
-			a = a->counterclockNext;
-			isUpperTangentOfLeft = isUpperTangentOfHull(a->point, b->point, left);
+			upperTangent.first = upperTangent.first->counterclockNext;
+			isUpperTangentOfLeft = isUpperTangentOfHull(upperTangent, left);
 		}
-		isUpperTangentOfRight = isUpperTangentOfHull(a->point, b->point, right);
+		isUpperTangentOfRight = isUpperTangentOfHull(upperTangent, right);
 		while (!isUpperTangentOfRight) {
-			b = b->clockwiseNext;
-			isUpperTangentOfRight = isUpperTangentOfHull(a->point, b->point, right);
+			upperTangent.second = upperTangent.second->clockwiseNext;
+			isUpperTangentOfRight = isUpperTangentOfHull(upperTangent, right);
 		}
-		isUpperTangentOfRight = isUpperTangentOfHull(a->point, b->point, left);
+		isUpperTangentOfRight = isUpperTangentOfHull(upperTangent, left);
 	}
-	return std::pair<Node*, Node*>(a, b);
+	return upperTangent;
 }
 
-bool isUpperTangentOfHull(Point a, Point b, Hull hull) {
+bool isUpperTangentOfHull(Line tangent, Hull hull) {
 	auto currentPoint = hull.left;
 	do {
-		if (isPointLeftOfLine(a, b, currentPoint->point)) {
+		if (isPointLeftOfLine(tangent, currentPoint)) {
 			return false;
 		}
 		currentPoint = currentPoint->clockwiseNext;
@@ -336,21 +333,19 @@ Hull mergeVisual(Hull left, Hull right, sf::RenderWindow& window) {
 	displayPoints(points, PointColor, window);
 	displayHull(left, HullColor, window);
 	displayHull(right, HullColor, window);
-	displayLine(upperTangent.first->point, upperTangent.second->point, WorkingColor, window);
+	displayLine(upperTangent, WorkingColor, window);
 	window.display();
 	std::this_thread::sleep_for(std::chrono::milliseconds(animationStepTime));
 
 	auto lowerTangent = visualFindLowerTangentOfHulls(left, right, window, upperTangent);
-
 	window.clear(sf::Color::White);
 	displayPoints(points, PointColor, window);
 	displayHull(left, HullColor, window);
 	displayHull(right, HullColor, window);
-	displayLine(upperTangent.first->point, upperTangent.second->point, WorkingColor, window);
-	displayLine(lowerTangent.first->point, lowerTangent.second->point, WorkingColor, window);
+	displayLine(upperTangent, WorkingColor, window);
+	displayLine(lowerTangent, WorkingColor, window);
 	window.display();
 	std::this_thread::sleep_for(std::chrono::milliseconds(animationStepTime));
-
 	newHull.left = left.left;
 	newHull.right = right.right;
 
@@ -358,37 +353,33 @@ Hull mergeVisual(Hull left, Hull right, sf::RenderWindow& window) {
 	displayPoints(points, PointColor, window);
 	displayHull(left, ErrorColor, window);
 	displayHull(right, ErrorColor, window); 
-	displayLine(upperTangent.first->point, upperTangent.second->point, WorkingColor, window);
-	displayLine(lowerTangent.first->point, lowerTangent.second->point, WorkingColor, window);
+	displayLine(upperTangent, WorkingColor, window);
+	displayLine(lowerTangent, WorkingColor, window);
 	window.display();
 	std::this_thread::sleep_for(std::chrono::milliseconds(animationStepTime));
-
 	//TODO: Delete Points that get removed
-	upperTangent.first->clockwiseNext = upperTangent.second;
-	upperTangent.second->counterclockNext = upperTangent.first;
+	upperTangent.first->counterclockNext = upperTangent.second;
+	upperTangent.second->clockwiseNext = upperTangent.first; 
 	lowerTangent.first->counterclockNext = lowerTangent.second;
 	lowerTangent.second->clockwiseNext = lowerTangent.first;
-
 
 	window.clear(sf::Color::White);
 	displayPoints(points, PointColor, window);
 	displayHull(newHull, HullColor, window);	
 	window.display();
 	std::this_thread::sleep_for(std::chrono::milliseconds(animationStepTime));
-
 	return newHull;
 }
 
-std::pair<Node*, Node*> visualFindLowerTangentOfHulls(Hull left, Hull right, sf::RenderWindow& window, std::pair<Node*, Node*> upperTangent) {
-	auto a = left.right;
-	auto b = right.left;
+Line visualFindLowerTangentOfHulls(Hull left, Hull right, sf::RenderWindow& window, Line upperTangent) {
+	Line lowerTangent(right.left, left.right);
 
 	window.clear(sf::Color::White);
 	displayPoints(points, PointColor, window);
 	displayHull(left, HullColor, window);
 	displayHull(right, HullColor, window);
-	displayLine(a->point, b->point, SecondaryWorkingColor, window);
-	displayLine(upperTangent.first->point, upperTangent.second->point, WorkingColor, window);
+	displayLine(lowerTangent, SecondaryWorkingColor, window);
+	displayLine(upperTangent, WorkingColor, window);
 	window.display();
 	std::this_thread::sleep_for(std::chrono::milliseconds(animationStepTime));
 	
@@ -397,10 +388,10 @@ std::pair<Node*, Node*> visualFindLowerTangentOfHulls(Hull left, Hull right, sf:
 	displayPoints(points, PointColor, window);
 	displayHull(left, HullColor, window);
 	displayHull(right, HullColor, window);
-	displayLine(a->point, b->point, SecondaryWorkingColor, window);
-	displayLine(upperTangent.first->point, upperTangent.second->point, WorkingColor, window);
-	bool isLowerTangentOfLeft = visualIsUpperTangentOfHull(b->point, a->point, left, window);
-	bool isLowerTangentOfRight = visualIsUpperTangentOfHull(b->point, a->point, right, window);
+	displayLine(lowerTangent, SecondaryWorkingColor, window);
+	displayLine(upperTangent, WorkingColor, window);
+	bool isLowerTangentOfLeft = visualIsUpperTangentOfHull(lowerTangent, left, window);
+	bool isLowerTangentOfRight = visualIsUpperTangentOfHull(lowerTangent, right, window);
 	window.display();
 	std::this_thread::sleep_for(std::chrono::milliseconds(animationStepTime));
 
@@ -412,20 +403,19 @@ std::pair<Node*, Node*> visualFindLowerTangentOfHulls(Hull left, Hull right, sf:
 			displayPoints(points, PointColor, window);
 			displayHull(left, HullColor, window);
 			displayHull(right, HullColor, window);
-			displayLine(a->point, b->point, SecondaryWorkingColor, window);
-			displayLine(upperTangent.first->point, upperTangent.second->point, WorkingColor, window);
+			displayLine(lowerTangent, SecondaryWorkingColor, window);
+			displayLine(upperTangent, WorkingColor, window);
 			window.display();
 			std::this_thread::sleep_for(std::chrono::milliseconds(animationStepTime));
-			a = a->clockwiseNext;
-
+			lowerTangent.second = lowerTangent.second->clockwiseNext;
 
 			window.clear(sf::Color::White);
 			displayPoints(points, PointColor, window);
 			displayHull(left, HullColor, window);
 			displayHull(right, HullColor, window);
-			displayLine(a->point, b->point, SecondaryWorkingColor, window);
-			displayLine(upperTangent.first->point, upperTangent.second->point, WorkingColor, window);
-			isLowerTangentOfLeft = visualIsUpperTangentOfHull(b->point, a->point, left, window);
+			displayLine(lowerTangent, SecondaryWorkingColor, window);
+			displayLine(upperTangent, WorkingColor, window);
+			isLowerTangentOfLeft = visualIsUpperTangentOfHull(lowerTangent, left, window);
 			window.display();
 			std::this_thread::sleep_for(std::chrono::milliseconds(animationStepTime));
 
@@ -434,8 +424,8 @@ std::pair<Node*, Node*> visualFindLowerTangentOfHulls(Hull left, Hull right, sf:
 		displayPoints(points, PointColor, window);
 		displayHull(left, HullColor, window);
 		displayHull(right, HullColor, window);
-		displayLine(a->point, b->point, SecondaryWorkingColor, window);
-		displayLine(upperTangent.first->point, upperTangent.second->point, WorkingColor, window);
+		displayLine(lowerTangent, SecondaryWorkingColor, window);
+		displayLine(upperTangent, WorkingColor, window);
 		window.display();
 		std::this_thread::sleep_for(std::chrono::milliseconds(animationStepTime));
 
@@ -443,21 +433,20 @@ std::pair<Node*, Node*> visualFindLowerTangentOfHulls(Hull left, Hull right, sf:
 		displayPoints(points, PointColor, window);
 		displayHull(left, HullColor, window);
 		displayHull(right, HullColor, window);
-		displayLine(a->point, b->point, SecondaryWorkingColor, window);
-		displayLine(upperTangent.first->point, upperTangent.second->point, WorkingColor, window);
-		isLowerTangentOfRight = visualIsUpperTangentOfHull(b->point, a->point, right, window);
+		displayLine(lowerTangent, SecondaryWorkingColor, window);
+		displayLine(upperTangent, WorkingColor, window);
+		isLowerTangentOfRight = visualIsUpperTangentOfHull(lowerTangent, right, window);
 		window.display();
 		std::this_thread::sleep_for(std::chrono::milliseconds(animationStepTime));
 
 		while (!isLowerTangentOfRight) {
-			b = b->counterclockNext;
-
+			lowerTangent.first = lowerTangent.first->counterclockNext;
 			window.clear(sf::Color::White);
 			displayPoints(points, PointColor, window);
 			displayHull(left, HullColor, window);
 			displayHull(right, HullColor, window);
-			displayLine(a->point, b->point, SecondaryWorkingColor, window);
-			displayLine(upperTangent.first->point, upperTangent.second->point, WorkingColor, window);
+			displayLine(lowerTangent, SecondaryWorkingColor, window);
+			displayLine(upperTangent, WorkingColor, window);
 			window.display();
 			std::this_thread::sleep_for(std::chrono::milliseconds(animationStepTime));
 
@@ -465,9 +454,9 @@ std::pair<Node*, Node*> visualFindLowerTangentOfHulls(Hull left, Hull right, sf:
 			displayPoints(points, PointColor, window);
 			displayHull(left, HullColor, window);
 			displayHull(right, HullColor, window);
-			displayLine(a->point, b->point, SecondaryWorkingColor, window);
-			displayLine(upperTangent.first->point, upperTangent.second->point, WorkingColor, window);
-			isLowerTangentOfRight = visualIsUpperTangentOfHull(b->point, a->point, right, window);
+			displayLine(lowerTangent, SecondaryWorkingColor, window);
+			displayLine(upperTangent, WorkingColor, window);
+			isLowerTangentOfRight = visualIsUpperTangentOfHull(lowerTangent, right, window);
 			window.display();
 			std::this_thread::sleep_for(std::chrono::milliseconds(animationStepTime));
 		}
@@ -476,25 +465,23 @@ std::pair<Node*, Node*> visualFindLowerTangentOfHulls(Hull left, Hull right, sf:
 		displayPoints(points, PointColor, window);
 		displayHull(left, HullColor, window);
 		displayHull(right, HullColor, window);
-		displayLine(a->point, b->point, SecondaryWorkingColor, window);
-		displayLine(upperTangent.first->point, upperTangent.second->point, WorkingColor, window);
-		isLowerTangentOfLeft = visualIsUpperTangentOfHull(b->point, a->point, left, window);
+		displayLine(lowerTangent, SecondaryWorkingColor, window);
+		displayLine(upperTangent, WorkingColor, window);
+		isLowerTangentOfLeft = visualIsUpperTangentOfHull(lowerTangent, left, window);
 		window.display();
 		std::this_thread::sleep_for(std::chrono::milliseconds(animationStepTime));
 	}
-	return std::pair<Node*, Node*>(a, b);
+	return lowerTangent;
 }
 
-std::pair<Node*, Node*> visualFindUpperTangentOfHulls(Hull left, Hull right, sf::RenderWindow& window) {
-	auto a = left.right;
-	auto b = right.left;
-
+Line visualFindUpperTangentOfHulls(Hull left, Hull right, sf::RenderWindow& window) {
+	Line upperTangent(left.right, right.left);
 
 	window.clear(sf::Color::White);
 	displayPoints(points, PointColor, window);
 	displayHull(left, HullColor, window);
 	displayHull(right, HullColor, window);
-	displayLine(a->point, b->point, SecondaryWorkingColor, window);
+	displayLine(upperTangent, SecondaryWorkingColor, window);
 	window.display();
 	std::this_thread::sleep_for(std::chrono::milliseconds(animationStepTime));
 
@@ -503,22 +490,19 @@ std::pair<Node*, Node*> visualFindUpperTangentOfHulls(Hull left, Hull right, sf:
 	displayPoints(points, PointColor, window);
 	displayHull(left, HullColor, window);
 	displayHull(right, HullColor, window);
-	displayLine(a->point, b->point, SecondaryWorkingColor, window);
-	bool isUpperTangentOfLeft = visualIsUpperTangentOfHull(a->point, b->point, left, window);
-	bool isUpperTangentOfRight = visualIsUpperTangentOfHull(a->point, b->point, right, window);
+	displayLine(upperTangent, SecondaryWorkingColor, window);
+	bool isUpperTangentOfLeft = visualIsUpperTangentOfHull(upperTangent, left, window);
+	bool isUpperTangentOfRight = visualIsUpperTangentOfHull(upperTangent, right, window);
 	window.display();
 	std::this_thread::sleep_for(std::chrono::milliseconds(animationStepTime));
 	while (!isUpperTangentOfLeft || !isUpperTangentOfRight) {
-
-		
-
 		while (!isUpperTangentOfLeft) {
-			a = a->counterclockNext;
+			upperTangent.first = upperTangent.first->counterclockNext;
 			window.clear(sf::Color::White);
 			displayPoints(points, PointColor, window);
 			displayHull(left, HullColor, window);
 			displayHull(right, HullColor, window);
-			displayLine(a->point, b->point, SecondaryWorkingColor, window);
+			displayLine(upperTangent, SecondaryWorkingColor, window);
 			window.display();
 			std::this_thread::sleep_for(std::chrono::milliseconds(animationStepTime));
 
@@ -527,8 +511,8 @@ std::pair<Node*, Node*> visualFindUpperTangentOfHulls(Hull left, Hull right, sf:
 			displayPoints(points, PointColor, window);
 			displayHull(left, HullColor, window);
 			displayHull(right, HullColor, window);
-			displayLine(a->point, b->point, SecondaryWorkingColor, window);
-			isUpperTangentOfLeft = visualIsUpperTangentOfHull(a->point, b->point, left, window);
+			displayLine(upperTangent, SecondaryWorkingColor, window);
+			isUpperTangentOfLeft = visualIsUpperTangentOfHull(upperTangent, left, window);
 			window.display();
 			std::this_thread::sleep_for(std::chrono::milliseconds(animationStepTime));
 
@@ -538,7 +522,7 @@ std::pair<Node*, Node*> visualFindUpperTangentOfHulls(Hull left, Hull right, sf:
 		displayPoints(points, PointColor, window);
 		displayHull(left, HullColor, window);
 		displayHull(right, HullColor, window);
-		displayLine(a->point, b->point, SecondaryWorkingColor, window);
+		displayLine(upperTangent, SecondaryWorkingColor, window);
 		window.display();
 		std::this_thread::sleep_for(std::chrono::milliseconds(animationStepTime));
 
@@ -546,19 +530,19 @@ std::pair<Node*, Node*> visualFindUpperTangentOfHulls(Hull left, Hull right, sf:
 		displayPoints(points, PointColor, window);
 		displayHull(left, HullColor, window);
 		displayHull(right, HullColor, window);
-		displayLine(a->point, b->point, SecondaryWorkingColor, window);
-		isUpperTangentOfRight = visualIsUpperTangentOfHull(a->point, b->point, right, window);
+		displayLine(upperTangent, SecondaryWorkingColor, window);
+		isUpperTangentOfRight = visualIsUpperTangentOfHull(upperTangent, right, window);
 		window.display();
 		std::this_thread::sleep_for(std::chrono::milliseconds(animationStepTime));
 
 		while (!isUpperTangentOfRight) {
-			b = b->clockwiseNext;
+			upperTangent.second = upperTangent.second->clockwiseNext;
 
 			window.clear(sf::Color::White);
 			displayPoints(points, PointColor, window);
 			displayHull(left, HullColor, window);
 			displayHull(right, HullColor, window);
-			displayLine(a->point, b->point, SecondaryWorkingColor, window);
+			displayLine(upperTangent, SecondaryWorkingColor, window);
 			window.display();
 			std::this_thread::sleep_for(std::chrono::milliseconds(animationStepTime));
 
@@ -566,8 +550,8 @@ std::pair<Node*, Node*> visualFindUpperTangentOfHulls(Hull left, Hull right, sf:
 			displayPoints(points, PointColor, window);
 			displayHull(left, HullColor, window);
 			displayHull(right, HullColor, window);
-			displayLine(a->point, b->point, SecondaryWorkingColor, window);
-			isUpperTangentOfRight = visualIsUpperTangentOfHull(a->point, b->point, right, window);
+			displayLine(upperTangent, SecondaryWorkingColor, window);
+			isUpperTangentOfRight = visualIsUpperTangentOfHull(upperTangent, right, window);
 			window.display();
 			std::this_thread::sleep_for(std::chrono::milliseconds(animationStepTime));
 
@@ -578,19 +562,19 @@ std::pair<Node*, Node*> visualFindUpperTangentOfHulls(Hull left, Hull right, sf:
 		displayPoints(points, PointColor, window);
 		displayHull(left, HullColor, window);
 		displayHull(right, HullColor, window);
-		displayLine(a->point, b->point, SecondaryWorkingColor, window);
-		isUpperTangentOfRight = visualIsUpperTangentOfHull(a->point, b->point, left, window);
+		displayLine(upperTangent, SecondaryWorkingColor, window);
+		isUpperTangentOfRight = visualIsUpperTangentOfHull(upperTangent, left, window);
 		window.display();
 		std::this_thread::sleep_for(std::chrono::milliseconds(animationStepTime));
 	}
-	return std::pair<Node*, Node*>(a, b);
+	return upperTangent;
 }
 
-bool visualIsUpperTangentOfHull(Point a, Point b, Hull hull, sf::RenderWindow& window) {
+bool visualIsUpperTangentOfHull(Line tangent, Hull hull, sf::RenderWindow& window) {
 	auto currentPoint = hull.left;
 	bool upper = true;
 	do {
-		if (isPointLeftOfLine(a, b, currentPoint->point)) {
+		if (isPointLeftOfLine(tangent, currentPoint)) {
 			displayPoint(currentPoint->point, ErrorColor, window);
 			upper = false;
 		}
@@ -606,7 +590,10 @@ bool visualIsUpperTangentOfHull(Point a, Point b, Hull hull, sf::RenderWindow& w
 
 #pragma region Utility Functions
 
-bool isPointLeftOfLine(Point a, Point b, Point p) {
+bool isPointLeftOfLine(Line line, Node* point) {
+	Point a = line.first->point;
+	Point b = line.second->point;
+	Point p = point->point;
 	return ((b.X - a.X) * (p.Y - a.Y) - (b.Y - a.Y) * (p.X - a.X))>0;
 }
 
@@ -630,19 +617,19 @@ void displayHull(const Hull& hull, const sf::Color& color, sf::RenderWindow& win
 	auto currentNode = hull.left;
 	if (currentNode != nullptr) {
 		do {
-			displayLine(currentNode->point, currentNode->clockwiseNext->point, color, window);
+			displayLine(Line(currentNode, currentNode->clockwiseNext), color, window);
 			currentNode = currentNode->clockwiseNext;
 		} while (currentNode != hull.left);
 	}
 }
-void displayLine(const Point& a, const Point& b, const sf::Color& color, sf::RenderWindow& window)
+void displayLine(const Line& line, const sf::Color& color, sf::RenderWindow& window)
 {
-	sf::Vertex line[] =
+	sf::Vertex lineDrawing[] =
 	{
-		sf::Vertex(sf::Vector2f(a.X, a.Y)),
-		sf::Vertex(sf::Vector2f(b.X, b.Y))
+		sf::Vertex(sf::Vector2f(line.first->point.X, line.first->point.Y)),
+		sf::Vertex(sf::Vector2f(line.second->point.X, line.second->point.Y))
 	};
-	line->color = color;
-	window.draw(line, 2, sf::Lines);
+	lineDrawing->color = color;
+	window.draw(lineDrawing, 2, sf::Lines);
 }
 #pragma endregion
