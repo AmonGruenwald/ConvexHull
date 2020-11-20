@@ -76,6 +76,7 @@ StyleCopReport.xml
 *.exe
 *.tlog
 *.idb
+*.recipe
 *.pgc
 *.pgd
 *.rsp
