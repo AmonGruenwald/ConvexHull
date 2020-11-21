@@ -209,7 +209,20 @@ Hull merge(Hull left, Hull right) {
 	//finding both tangents
 	auto upperTangent = findUpperTangentOfHulls(left, right);
 	auto lowerTangent = findLowerTangentOfHulls(left, right);
-
+	
+	//deleting nodes that are not connected to the new hull anymore
+	auto currentNode = upperTangent.first->counterclockNext;
+	while (currentNode != lowerTangent.second) {
+		auto deleteNode = currentNode;
+		currentNode = currentNode->counterclockNext;
+		delete deleteNode;
+	}
+	currentNode = lowerTangent.first->counterclockNext;
+	while (currentNode != upperTangent.second) {
+		auto deleteNode = currentNode;
+		currentNode = currentNode->counterclockNext;
+		delete deleteNode;
+	}
 
 	//connecting points on both tangents to each other, so the hull is correctly connected
 	upperTangent.first->counterclockNext = upperTangent.second;
@@ -331,6 +344,19 @@ Hull mergeVisual(Hull left, Hull right, Scene& scene) {
 	scene.AddErrorHull(right);
 	scene.Render();
 
+	//deleting nodes that are not connected to the new hull anymore
+	auto currentNode = upperTangent.first->counterclockNext;
+	while (currentNode != lowerTangent.second) {
+		auto deleteNode = currentNode;
+		currentNode = currentNode->counterclockNext;
+		delete deleteNode;
+	}
+	currentNode = lowerTangent.first->counterclockNext;
+	while (currentNode != upperTangent.second) {
+		auto deleteNode = currentNode;
+		currentNode = currentNode->counterclockNext;
+		delete deleteNode;
+	}
 
 	//connecting points on both tangents to each other, so the hull is correctly connected
 	upperTangent.first->counterclockNext = upperTangent.second;
