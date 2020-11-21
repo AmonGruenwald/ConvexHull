@@ -18,5 +18,11 @@
     <ClCompile Include="main.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="scene.h">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="datastructures.h">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
