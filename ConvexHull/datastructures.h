@@ -7,6 +7,16 @@ struct Point {
 	float Y;
 	Point(float x, float y) :X(x), Y(y) {}
 	Point() :X(0), Y(0) {}
+
+	bool operator<(const Point& rhs) const
+	{
+		return X < rhs.X;
+	}
+
+	bool operator==(const Point& rhs) const
+	{
+		return (X == rhs.X&&Y==rhs.Y);
+	}
 };
 
 struct Node {

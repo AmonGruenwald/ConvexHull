@@ -8,6 +8,7 @@
 #include <fstream>
 #define _USE_MATH_DEFINES
 #include <math.h>
+#include <set>
 
 #define WINDOW_WIDTH 800
 #define WINDOW_HEIGTH 600
@@ -56,8 +57,9 @@ bool visualIsUpperTangentOfHull(Line tangent, Hull hull, Scene& scene);
 bool isPointLeftOfLine(Line line, Node* point);
 #pragma endregion
 
-bool visualMode = true;
+bool visualMode = false;
 std::string filePath = "";
+//std::string filePath = "..\\Testcases\\AnotherEdgeCase.txt";
 int pointAmount = 1000;
 
 
@@ -78,6 +80,9 @@ int main(int argc, char* argv[])
 	// Sort points by their x coordinates.
 	std::sort(points.begin(), points.end(), [](Point& a, Point& b) { return a.X == b.X ? a.Y < b.Y : a.X < b.X; });
 
+	//TODO: Fix it smarter maybe, i dont fucking know lol
+	//Quick fix removing duplicates because we still dont catch all edge cases
+	points.erase(std::unique(points.begin(), points.end()), points.end());
 	sf::RenderWindow window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGTH), "Divide and Conquer");
 	Scene scene(window);
 	Hull hull;
@@ -195,7 +200,7 @@ std::vector<Point> generateRandomPoints(unsigned int amount)
 		bool contains = false;
 		for (auto p : points)
 		{
-			if (p.X == point.X || p.Y == point.Y)
+			if (p.X == point.X && p.Y == point.Y)
 				contains = false;
 		}
 		if (contains)
@@ -232,15 +237,19 @@ Hull calculateHull(std::vector<Point>& points)
 	Hull rightHull;
 
 	// Split until each vector has 3 or 2 values.
-	if (left.size() > 3)
+	if (left.size() > 3) {
 		leftHull = calculateHull(left);
-	else
+	}
+	else {
 		leftHull = generateSmallestHull(left);
+	}
 
-	if (right.size() > 3)
+	if (right.size() > 3) {
 		rightHull = calculateHull(right);
-	else
+	}
+	else {
 		rightHull = generateSmallestHull(right);
+	}
 
 	Hull hull = merge(leftHull, rightHull);
 	return hull;
@@ -249,7 +258,14 @@ Hull calculateHull(std::vector<Point>& points)
 Hull generateSmallestHull(std::vector<Point>& points)
 {
 	Hull hull = Hull();
-	if (points.size() == 2) {
+	if (points.size() == 1) {
+		Node* node = new Node(points[0]);
+		node->clockwiseNext = node;
+		node->counterclockNext = node;
+		hull.left = node;
+		hull.right = node;
+	}
+	else if (points.size() == 2) {
 		Node* left = new Node(points[0]);
 		Node* right = new Node(points[1]);
 		left->clockwiseNext = right;
@@ -264,8 +280,17 @@ Hull generateSmallestHull(std::vector<Point>& points)
 		Node* middle = new Node(points[1]);
 		Node* right = new Node(points[2]);
 
+
+		if (isPointLeftOfLine(Line(left, right), middle)) {
+		}
+		else {
+		}
+
+		bool middleIsUp;
 		// Check if middle node is up or down to determine neighbors.
-		bool middleIsUp = isPointLeftOfLine(Line(left, right), middle);
+
+		middleIsUp = !isPointLeftOfLine(Line(left, right), middle);
+
 		left->clockwiseNext = middleIsUp ? middle : right;
 		left->counterclockNext = middleIsUp ? right : middle;
 		middle->clockwiseNext = middleIsUp ? right : left;
@@ -279,10 +304,13 @@ Hull generateSmallestHull(std::vector<Point>& points)
 	return hull;
 }
 
-Hull merge(Hull left, Hull right)
-{
+Hull merge(Hull left, Hull right) {
+
+
 	//finding both tangents
+
 	auto upperTangent = findUpperTangentOfHulls(left, right);
+
 	auto lowerTangent = findLowerTangentOfHulls(left, right);
 
 	if (upperTangent.first != lowerTangent.second) {
@@ -307,25 +335,34 @@ Hull merge(Hull left, Hull right)
 	upperTangent.first->counterclockNext = upperTangent.second;
 	upperTangent.second->clockwiseNext = upperTangent.first;
 
-	lowerTangent.first->counterclockNext = lowerTangent.second;
-	lowerTangent.second->clockwiseNext = lowerTangent.first;
+	// Edge case "line": Connect to extremes to prevent infinite loop (missing second tangent -> missing path).
+	if (upperTangent.first == lowerTangent.second && upperTangent.second == lowerTangent.first) {
+		left.left->clockwiseNext = right.right;
+		right.right->counterclockNext = left.left;
+	}
+	else {
+		lowerTangent.first->counterclockNext = lowerTangent.second;
+		lowerTangent.second->clockwiseNext = lowerTangent.first;
+	}
 
 	//creating a new hull and setting left and right to corresponding values of previous hulls, so we dont have to sort again
 	Hull newHull;
 
 	newHull.left = left.left;
 	newHull.right = right.right;
-
 	return newHull;
 }
 
 Line findLowerTangentOfHulls(Hull left, Hull right) {
+
 	//because we still use the method to check if a line is the upper tangent of the hull, we have to switch the direction of the tangent
 	Line lowerTangent(right.left, left.right);
+
 	//checking if the line is already viable for both hull
 	bool isLowerTangentOfLeft = isUpperTangentOfHull(lowerTangent, left);
 	bool isLowerTangentOfRight = isUpperTangentOfHull(lowerTangent, right);
 	//while it is not viable for both hulls continue trying different points
+	
 	while (!isLowerTangentOfLeft || !isLowerTangentOfRight) {
 		//while it is not viable for the left hull
 		while (!isLowerTangentOfLeft) {
@@ -351,7 +388,10 @@ Line findLowerTangentOfHulls(Hull left, Hull right) {
 }
 
 Line findUpperTangentOfHulls(Hull left, Hull right) {
+
+	//starting with the line connecting the opposite extreme points of both hulls
 	Line upperTangent(left.right, right.left);
+
 	//checking if the line is already viable for both hull
 	bool isUpperTangentOfLeft = isUpperTangentOfHull(upperTangent, left);
 	bool isUpperTangentOfRight = isUpperTangentOfHull(upperTangent, right);
@@ -363,7 +403,9 @@ Line findUpperTangentOfHulls(Hull left, Hull right) {
 			upperTangent.first = upperTangent.first->clockwiseNext;
 			//and check again
 			isUpperTangentOfLeft = isUpperTangentOfHull(upperTangent, left);
+
 		}
+
 		//is new line tangent of right hull
 		isUpperTangentOfRight = isUpperTangentOfHull(upperTangent, right);
 		//if its not
@@ -381,7 +423,12 @@ Line findUpperTangentOfHulls(Hull left, Hull right) {
 }
 
 bool isUpperTangentOfHull(Line tangent, Hull hull) {
+
 	auto currentPoint = hull.left;
+
+	if (tangent.first->point.X == tangent.second->point.X && tangent.first->point.Y == tangent.second->point.Y)
+		return false;
+
 	//iterating over the whole hull
 	do {
 		//if a point is left of the line, life cannot be upper tangent of whole whole
@@ -390,8 +437,8 @@ bool isUpperTangentOfHull(Line tangent, Hull hull) {
 		}
 		currentPoint = currentPoint->clockwiseNext;
 	} while (currentPoint != hull.left);
-	return true;
 }
+
 #pragma endregion
 
 #pragma region Visual Hull Calculation
@@ -429,7 +476,14 @@ Hull calculateHullVisual(std::vector<Point>& points, Scene& scene)
 Hull generateSmallestHullVisual(std::vector<Point>& points, Scene& scene)
 {
 	Hull hull = Hull();
-	if (points.size() == 2) {
+	if (points.size() == 1) {
+		Node* node = new Node(points[0]);
+		node->clockwiseNext = node;
+		node->counterclockNext = node;
+		hull.left = node;
+		hull.right = node;
+	}
+	else if (points.size() == 2) {
 		Node* left = new Node(points[0]);
 		Node* right = new Node(points[1]);
 		left->clockwiseNext = right;
