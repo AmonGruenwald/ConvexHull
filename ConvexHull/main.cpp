@@ -5,16 +5,40 @@
 #include "datastructures.h"
 #include "scene.h"
 
+#include <fstream>
+#define _USE_MATH_DEFINES
+#include <math.h>
+
 #define WINDOW_WIDTH 800
 #define WINDOW_HEIGTH 600
 
+// Delimiter that defines the position of a point in a file (e.g. 10,20).
+#define DATA_DELIMITER ','
+
+enum class ArgumentType { LOAD, POINT_AMOUNT, VISUAL_MODE, HELP };
+
+std::map<std::string, ArgumentType> argumentMap{
+	{"--load", ArgumentType::LOAD},
+	{"--points", ArgumentType::POINT_AMOUNT},
+	{"-p", ArgumentType::POINT_AMOUNT},
+	{"--visual", ArgumentType::VISUAL_MODE},
+	{"-v", ArgumentType::VISUAL_MODE},
+	{"--help", ArgumentType::HELP},
+};
+
+
 #pragma region Function declarations
 //Setup functions
-int handleParameters();
-std::vector<Point> generatePoints(const std::string& filePath);
+void handleArguments(int argc, char* argv[]);
+void showWrongArguments();
+void showHelp();
+std::vector<Point> generatePointsFromFile(const std::string& filePath);
+std::vector<Point> generateRandomPoints(unsigned int amount);
+std::vector<Point> generateRandomPointsOnCircle(unsigned int amount);
 
 //Optimized calculation functions
 Hull calculateHull(std::vector<Point>& points);
+Hull generateSmallestHull(std::vector<Point>& points);
 Hull merge(Hull left, Hull right);
 Line findLowerTangentOfHulls(Hull left, Hull right);
 Line findUpperTangentOfHulls(Hull left, Hull right);
@@ -31,118 +55,25 @@ bool visualIsUpperTangentOfHull(Line tangent, Hull hull, Scene& scene);
 bool isPointLeftOfLine(Line line, Node* point);
 #pragma endregion
 
-//TODO: variables should be read from commandline arguments
-bool visualMode = true;
+bool visualMode = false;
+//std::string filePath = "../Testcases/TwoTriangles.txt";
 std::string filePath = "";
-int pointAmount = 10;
+int pointAmount = 100;
 
 
-//main to test merge, remove before handing in
-/*
-int main()
+int main(int argc, char* argv[])
 {
-	Point a1(100, 100);
-	Point a2(150, 50);
-	Point a3(200, 100);
-	Point a4(150, 150);
+	handleArguments(argc, argv);
 
-	std::vector<Point> points; 
-	points.push_back(a1);
-	points.push_back(a2);
-	points.push_back(a3);
-	points.push_back(a4);
-
-	auto aNode1 = new Node(a1);
-	auto aNode2 = new Node(a2);
-	auto aNode3 = new Node(a3);
-	auto aNode4 = new Node(a4);
-
-	aNode1->clockwiseNext = aNode2;
-	aNode1->counterclockNext = aNode4;
-
-
-	aNode2->clockwiseNext = aNode3;
-	aNode2->counterclockNext = aNode1;
-
-	aNode3->clockwiseNext = aNode4;
-	aNode3->counterclockNext = aNode2;
-
-	aNode4->clockwiseNext = aNode1;
-	aNode4->counterclockNext = aNode3;
-
-	Hull aHull;
-	aHull.left = aNode1;
-	aHull.right = aNode3;
-
-	Point b1(300, 150);
-	Point b2(350, 100);
-	Point b3(400, 150);
-	Point b4(350, 200);
-
-	std::vector<Point> bPoints;
-
-	points.push_back(b1);
-	points.push_back(b2);
-	points.push_back(b3);
-	points.push_back(b4);
-
-	auto bNode1 = new Node(b1);
-	auto bNode2 = new Node(b2);
-	auto bNode3 = new Node(b3);
-	auto bNode4 = new Node(b4);
-
-	bNode1->clockwiseNext = bNode2;
-	bNode1->counterclockNext = bNode4;
-
-	bNode2->clockwiseNext = bNode3;
-	bNode2->counterclockNext = bNode1;
-
-	bNode3->clockwiseNext = bNode4;
-	bNode3->counterclockNext = bNode2;
-
-	bNode4->clockwiseNext = bNode1;
-	bNode4->counterclockNext = bNode3;
-
-	Hull bHull;
-	bHull.left = bNode1;
-	bHull.right = bNode3;
-
-	sf::RenderWindow window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGTH), "Divide and Conquer");
-
-	Scene scene(window);
-	
-	scene.AddDefaultPoints(points);
-
-	auto newHull = mergeVisual(aHull, bHull, scene);
-	//auto newHull = merge(aHull, bHull);
-
-	scene.ClearAll();
-	scene.AddCorrectHull(newHull);
-	scene.AddDefaultPoints(points);
-
-	while (window.isOpen())
+	std::vector<Point> points;
+	if (filePath != "")
+		points = generatePointsFromFile(filePath);
+	else
 	{
-		sf::Event event;
-		while (window.pollEvent(event))
-		{
-			if (event.type == sf::Event::Closed)
-				window.close();
-		}
-
-		scene.Render();
-	}
-}
-*/
-
-int main()
-{
-	int parameterExit = handleParameters();
-	if (parameterExit != 0) {
-		return parameterExit;
+		points = generateRandomPoints(pointAmount);
+		// points = generateRandomPointsOnCircle(pointAmount);
 	}
 
-	std::vector<Point> points = generatePoints(filePath);
-	
 	sf::RenderWindow window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGTH), "Divide and Conquer");
 	Scene scene(window);
 	Hull hull;
@@ -152,6 +83,9 @@ int main()
 	}
 	else {
 		auto start = std::chrono::high_resolution_clock::now();
+		//TODO: Better sorting algorithm (quicksort?)
+		// Sort points by their x coordinates.
+		std::sort(points.begin(), points.end(), [](Point& a, Point& b) { return a.X < b.X; });
 		hull = calculateHull(points);
 		auto end = std::chrono::high_resolution_clock::now();
 		std::cout << "Time: " << (std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()) << " microseconds" << std::endl;
@@ -174,21 +108,100 @@ int main()
 
 	//TODO: memory cleanup
 }
-
-#pragma region Setup Functions
-int handleParameters()
+#pragma region Argument Handling
+void handleArguments(int argc, char* argv[])
 {
-	//TODO: handle commandline arguments
-	return 0;
+	// Skip first argument (it's the .exe).
+	for (unsigned int i = 1; i < argc; i++)
+	{
+		std::string argType = std::string(argv[i]);
+		std::string argData = i + 1 < argc ? std::string(argv[i + 1]) : std::string();
+
+		switch (argumentMap[argType])
+		{
+		case ArgumentType::LOAD:
+			if (argData.empty())
+				showWrongArguments();
+			filePath = argData;
+			i++;
+			break;
+		case ArgumentType::POINT_AMOUNT:
+			if (argData.empty())
+				showWrongArguments();
+			pointAmount = std::stoi(argData);
+			i++;
+			break;
+		case ArgumentType::VISUAL_MODE:
+			visualMode = true;
+			break;
+		case ArgumentType::HELP:
+			showHelp();
+			std::exit(0);
+			break;
+		default:
+			showWrongArguments();
+			break;
+		}
+	}
 }
 
-std::vector<Point> generatePoints(const std::string& filePath)
+void showWrongArguments()
 {
-	//TODO: check if filepath is set and then read from file instead of generating random points
+	std::cerr << "Wrong arguments. Use arguments as following:" << std::endl;
+	showHelp();
+	std::exit(1);
+}
+
+void showHelp()
+{
+	std::cout << "--load <file> \t\t\t-> Filename to read from." << std::endl;
+	std::cout << "--points [-p] <numberOfPoints> \t-> Number of random points to be generated." << std::endl;
+	std::cout << "--visual [-v] \t\t\t-> Show visualization." << std::endl;
+	std::cout << "--help \t\t\t\t-> Prints out this message." << std::endl;
+}
+#pragma endregion
+
+#pragma region Setup Functions
+std::vector<Point> generatePointsFromFile(const std::string& filePath)
+{
+	// Generate points from file.
 	std::vector<Point> points;
-	for (int i = 0; i < pointAmount; i++) {
+	if (filePath != "") {
+		std::ifstream input;
+		input.open(filePath);
+		if (!input.is_open()) {
+			std::cerr << "Could not open file. Please check the path." << std::endl;
+			std::exit(1);
+		}
+		// Go through each line and get x and y coordinates.
+		while (input.peek() != EOF) {
+			std::string xAsString, yAsString;
+			std::getline(input, xAsString, DATA_DELIMITER);
+			std::getline(input, yAsString);
+			points.push_back(Point(std::stof(xAsString), std::stof(yAsString)));
+		}
+	}
+	return points;
+}
+std::vector<Point> generateRandomPoints(unsigned int amount)
+{
+	std::vector<Point> points;
+	for (int i = 0; i < amount; i++) {
 		//TODO: use better rand function
 		Point point(rand() % WINDOW_WIDTH, rand() % WINDOW_HEIGTH);
+		points.push_back(point);
+	}
+	return points;
+}
+std::vector<Point> generateRandomPointsOnCircle(unsigned int amount)
+{
+	std::vector<Point> points;
+	float radius = 200;
+	float periphery = M_PI * 2;
+	float steps = periphery / amount;
+	Point center = Point(WINDOW_WIDTH / 2, WINDOW_HEIGTH / 2);
+	for (float angle = 0; angle <= periphery; angle += steps) {
+		Point point(center.X + radius * cos(angle), center.Y + radius * sin(angle));
 		points.push_back(point);
 	}
 	return points;
@@ -198,18 +211,67 @@ std::vector<Point> generatePoints(const std::string& filePath)
 #pragma region Optimized Hull Calculation
 Hull calculateHull(std::vector<Point>& points)
 {
-	//TODO: calculate Hull
-	Hull hull;
+	unsigned int half = points.size() / 2;
+	std::vector<Point> left(points.begin(), points.begin() + half);
+	std::vector<Point> right(points.begin() + half, points.end());
+
+	Hull leftHull;
+	Hull rightHull;
+
+	// Split until each vector has 3 or 2 values.
+	if (left.size() > 3)
+		leftHull = calculateHull(left);
+	else
+		leftHull = generateSmallestHull(left);
+
+	if (right.size() > 3)
+		rightHull = calculateHull(right);
+	else
+		rightHull = generateSmallestHull(right);
+
+	Hull hull = merge(leftHull, rightHull);
 	return hull;
 }
 
-Hull merge(Hull left, Hull right) {
+Hull generateSmallestHull(std::vector<Point>& points)
+{
+	Hull hull = Hull();
+	if (points.size() == 2) {
+		Node* left = new Node(points[0]);
+		Node* right = new Node(points[1]);
+		left->clockwiseNext = right;
+		left->counterclockNext = right;
+		right->clockwiseNext = left;
+		right->counterclockNext = left;
+		hull.left = left;
+		hull.right = right;
+	}
+	else {
+		Node* left = new Node(points[0]);
+		Node* middle = new Node(points[1]);
+		Node* right = new Node(points[2]);
 
+		// Smaller because we start drawing in the top-left corner!
+		bool middleIsUp = middle->point.Y < right->point.Y;
+		left->clockwiseNext = middleIsUp ? middle : right;
+		left->counterclockNext = middleIsUp ? right : middle;
+		middle->clockwiseNext = middleIsUp ? right : left;
+		middle->counterclockNext = middleIsUp ? left : right;
+		right->clockwiseNext = middleIsUp ? left : middle;
+		right->counterclockNext = middleIsUp ? middle : left;
 
+		hull.left = left;
+		hull.right = right;
+	}
+	return hull;
+}
+
+Hull merge(Hull left, Hull right)
+{
 	//finding both tangents
 	auto upperTangent = findUpperTangentOfHulls(left, right);
 	auto lowerTangent = findLowerTangentOfHulls(left, right);
-	
+
 	//deleting nodes that are not connected to the new hull anymore
 	auto currentNode = upperTangent.first->counterclockNext;
 	while (currentNode != lowerTangent.second) {
@@ -230,7 +292,7 @@ Hull merge(Hull left, Hull right) {
 
 	lowerTangent.first->counterclockNext = lowerTangent.second;
 	lowerTangent.second->clockwiseNext = lowerTangent.first;
-	
+
 	//creating a new hull and setting left and right to corresponding values of previous hulls, so we dont have to sort again
 	Hull newHull;
 
@@ -286,7 +348,7 @@ Line findUpperTangentOfHulls(Hull left, Hull right) {
 			isUpperTangentOfLeft = isUpperTangentOfHull(upperTangent, left);
 		}
 		//is new line tangent of right hull
-		isUpperTangentOfRight = isUpperTangentOfHull(upperTangent, right);	
+		isUpperTangentOfRight = isUpperTangentOfHull(upperTangent, right);
 		//if its not
 		while (!isUpperTangentOfRight) {
 			//continue moving point on right hull
@@ -295,7 +357,7 @@ Line findUpperTangentOfHulls(Hull left, Hull right) {
 			isUpperTangentOfRight = isUpperTangentOfHull(upperTangent, right);
 		}
 		//is new line still viable for the left hull
-		isUpperTangentOfRight = isUpperTangentOfHull(upperTangent, left);
+		isUpperTangentOfLeft = isUpperTangentOfHull(upperTangent, left);
 	}
 	//if it is were done
 	return upperTangent;
@@ -500,7 +562,7 @@ Line visualFindUpperTangentOfHulls(Hull left, Hull right, Scene& scene) {
 }
 
 bool visualIsUpperTangentOfHull(Line tangent, Hull hull, Scene& scene) {
-	
+
 	auto currentPoint = hull.left;
 	bool upper = true;
 	//iterating over the whole hull
@@ -525,7 +587,7 @@ bool isPointLeftOfLine(Line line, Node* point) {
 	Point b = line.second->point;
 	Point p = point->point;
 	//if determinant is greater than zero, point is left of the line
-	return ((b.X - a.X) * (p.Y - a.Y) - (b.Y - a.Y) * (p.X - a.X))>0;
+	return ((b.X - a.X) * (p.Y - a.Y) - (b.Y - a.Y) * (p.X - a.X)) > 0;
 }
 #pragma endregion
 
