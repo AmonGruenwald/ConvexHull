@@ -7,12 +7,24 @@
 
 class Scene {
 public:
+	bool GoStepByStep = true;
+
 	Scene(sf::RenderWindow& window) :window(window) {};
 
 	void Render() {
+		
+		while(GoStepByStep && !sf::Keyboard::isKeyPressed(sf::Keyboard::Space))
+		{
+			if (sf::Keyboard::isKeyPressed(sf::Keyboard::E))
+				GoStepByStep = false;
+		}
+
 		window.clear(sf::Color::White);
 		for (auto p : DefaultPoints) {
 			displayPoint(p, DefaultColor);
+		}
+		for (auto p : WorkingPoints) {
+			displayPoint(p, WorkingColor);
 		}
 		for (auto p : ErrorPoints) {
 			displayPoint(p, ErrorColor);
@@ -42,43 +54,59 @@ public:
 			displayLine(l, ErrorColor);
 		}
 		window.display();
-		std::this_thread::sleep_for(std::chrono::milliseconds(animationStepTime));
+
+		std::this_thread::sleep_for(std::chrono::milliseconds(GoStepByStep ? manualStepDelay : animationStepTime));
 	}
 
-	void AddDefaultPoint(Point point) { DefaultPoints.push_back(point); }
-	void AddDefaultPoints(std::vector<Point> points) { DefaultPoints = points; }
-	void ClearDefaultPoints() { DefaultPoints.clear(); }
-	void AddErrorPoint(Point point) { ErrorPoints.push_back(point); }
-	void AddErrorPoints(std::vector<Point> points) { ErrorPoints = points; }
-	void ClearErrorPoints() { ErrorPoints.clear(); }
-	void AddCorrectPoint(Point point) { CorrectPoints.push_back(point); }
-	void AddCorrectPoints(std::vector<Point> points) { CorrectPoints = points; }
-	void ClearCorrectPoints() { CorrectPoints.clear(); }
+	inline void AddDefaultPoint(Point point) { DefaultPoints.push_back(point); }
+	inline void AddDefaultPoints(std::vector<Point> points) { DefaultPoints = points; }
+	inline void ClearDefaultPoints() { DefaultPoints.clear(); }
+	inline void AddErrorPoint(Point point) { ErrorPoints.push_back(point); }
+	inline void AddErrorPoints(std::vector<Point> points) { ErrorPoints = points; }
+	inline void ClearErrorPoints() { ErrorPoints.clear(); }
+	inline void AddCorrectPoint(Point point) { CorrectPoints.push_back(point); }
+	inline void AddCorrectPoints(std::vector<Point> points) { CorrectPoints = points; }
+	inline void ClearCorrectPoints() { CorrectPoints.clear(); }
+	inline void AddWorkingPoint(Point point) { WorkingPoints.push_back(point); }
+	inline void AddWorkingPoints(std::vector<Point> points) { WorkingPoints = points; }
+	inline void ClearWorkingPoints() { WorkingPoints.clear(); }
 
-	void AddDefaultHull(Hull hull) { DefaultHulls.push_back(hull); }
-	void ClearDefaultHulls() { DefaultHulls.clear(); }
-	void AddCorrectHull(Hull hull) { CorrectHulls.push_back(hull); }
-	void ClearCorrectHulls() { CorrectHulls.clear(); }
-	void AddErrorHull(Hull hull) { ErrorHulls.push_back(hull); }
-	void ClearErrorHulls() { ErrorHulls.clear(); }
+	inline void AddDefaultHull(Hull hull) { DefaultHulls.push_back(hull); }
+	inline void ClearDefaultHulls() { DefaultHulls.clear(); }
+	inline void AddCorrectHull(Hull hull) { CorrectHulls.push_back(hull); }
+	inline void ClearCorrectHulls() { CorrectHulls.clear(); }
+	inline void AddErrorHull(Hull hull) { ErrorHulls.push_back(hull); }
+	inline void ClearErrorHulls() { ErrorHulls.clear(); }
 
-	void AddDefaultLine(Line line) { DefaultLines.push_back(line); }
-	void ClearDefaultLine() { DefaultLines.clear(); }
-	void AddWorkingLine(Line line) { WorkingLines.push_back(line); }
-	void ClearWorkingLines() { WorkingLines.clear(); }
-	void AddSecondWorkingLine(Line line) { SecondWorkingLines.push_back(line); }
-	void ClearSecondWorkingLines() { SecondWorkingLines.clear(); }
-	void AddErrorLine(Line line) { ErrorLines.push_back(line); }
-	void ClearErrorLines() { ErrorLines.clear(); }
+	inline void AddDefaultLine(Line line) { DefaultLines.push_back(line); }
+	inline void ClearDefaultLines() { DefaultLines.clear(); }
+	inline void AddWorkingLine(Line line) { WorkingLines.push_back(line); }
+	inline void ClearWorkingLines() { WorkingLines.clear(); }
+	inline void AddSecondWorkingLine(Line line) { SecondWorkingLines.push_back(line); }
+	inline void ClearSecondWorkingLines() { SecondWorkingLines.clear(); }
+	inline void AddErrorLine(Line line) { ErrorLines.push_back(line); }
+	inline void ClearErrorLines() { ErrorLines.clear(); }
 
 	void ClearAll() {
 		ClearDefaultPoints();
 		ClearErrorPoints();
 		ClearCorrectPoints();
+		ClearWorkingPoints();
 		ClearDefaultHulls();
 		ClearCorrectHulls();
 		ClearErrorHulls();
-		ClearDefaultLine();
+		ClearDefaultLines();
+		ClearWorkingLines();
+		ClearSecondWorkingLines();
+		ClearErrorLines();
+	}
+
+	void ClearAllExtras() {
+		ClearErrorPoints();
+		ClearCorrectPoints();
+		ClearWorkingPoints();
+		ClearCorrectHulls();
+		ClearErrorHulls();
 		ClearWorkingLines();
 		ClearSecondWorkingLines();
 		ClearErrorLines();
@@ -88,6 +116,7 @@ private:
 
 	sf::RenderWindow& window;
 	const int animationStepTime = 1000;
+	const int manualStepDelay = 0;
 	const float pointRadius = 3;
 
 	const sf::Color DefaultColor = sf::Color::Black;
@@ -99,6 +128,7 @@ private:
 	std::vector<Point> DefaultPoints;
 	std::vector<Point> ErrorPoints;
 	std::vector<Point> CorrectPoints;
+	std::vector<Point> WorkingPoints;
 	std::vector<Hull> DefaultHulls;
 	std::vector<Hull> CorrectHulls;
 	std::vector<Hull> ErrorHulls;
@@ -131,7 +161,7 @@ private:
 		sf::Vertex lineDrawing[] =
 		{
 			sf::Vertex(sf::Vector2f(line.first->point.X, line.first->point.Y)),
-			sf::Vertex(sf::Vector2f(line.second->point.X, line.second->point.Y))
+ 			sf::Vertex(sf::Vector2f(line.second->point.X, line.second->point.Y))
 		};
 		lineDrawing->color = color;
 		window.draw(lineDrawing, 2, sf::Lines);

@@ -45,7 +45,8 @@ Line findUpperTangentOfHulls(Hull left, Hull right);
 bool isUpperTangentOfHull(Line tangent, Hull hull);
 
 //Visual calculation functions
-Hull calculateVisualHull(std::vector<Point>& points, Scene& scene);
+Hull calculateHullVisual(std::vector<Point>& points, Scene& scene);
+Hull generateSmallestHullVisual(std::vector<Point>& points, Scene& scene);
 Hull mergeVisual(Hull left, Hull right, Scene& scene);
 Line visualFindLowerTangentOfHulls(Hull left, Hull right, Scene& scene);
 Line visualFindUpperTangentOfHulls(Hull left, Hull right, Scene& scene);
@@ -55,10 +56,9 @@ bool visualIsUpperTangentOfHull(Line tangent, Hull hull, Scene& scene);
 bool isPointLeftOfLine(Line line, Node* point);
 #pragma endregion
 
-bool visualMode = false;
-//std::string filePath = "../Testcases/TwoTriangles.txt";
+bool visualMode = true;
 std::string filePath = "";
-int pointAmount = 100;
+int pointAmount = 1000;
 
 
 int main(int argc, char* argv[])
@@ -74,18 +74,21 @@ int main(int argc, char* argv[])
 		// points = generateRandomPointsOnCircle(pointAmount);
 	}
 
+	//TODO: Better sorting algorithm (quicksort?).
+	// Sort points by their x coordinates.
+	std::sort(points.begin(), points.end(), [](Point& a, Point& b) { return a.X == b.X ? a.Y < b.Y : a.X < b.X; });
+
 	sf::RenderWindow window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGTH), "Divide and Conquer");
 	Scene scene(window);
 	Hull hull;
 	if (visualMode) {
-		hull = calculateVisualHull(points, scene);
+		scene.AddDefaultPoints(points);
+		scene.Render();
+		hull = calculateHullVisual(points, scene);
 		scene.ClearAll();
 	}
 	else {
 		auto start = std::chrono::high_resolution_clock::now();
-		//TODO: Better sorting algorithm (quicksort?)
-		// Sort points by their x coordinates.
-		std::sort(points.begin(), points.end(), [](Point& a, Point& b) { return a.X < b.X; });
 		hull = calculateHull(points);
 		auto end = std::chrono::high_resolution_clock::now();
 		std::cout << "Time: " << (std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()) << " microseconds" << std::endl;
@@ -189,7 +192,17 @@ std::vector<Point> generateRandomPoints(unsigned int amount)
 	for (int i = 0; i < amount; i++) {
 		//TODO: use better rand function
 		Point point(rand() % WINDOW_WIDTH, rand() % WINDOW_HEIGTH);
-		points.push_back(point);
+		bool contains = false;
+		for (auto p : points)
+		{
+			if (p.X == point.X || p.Y == point.Y)
+				contains = false;
+		}
+		if (contains)
+			i--;
+		else
+			points.push_back(point);
+
 	}
 	return points;
 }
@@ -251,8 +264,8 @@ Hull generateSmallestHull(std::vector<Point>& points)
 		Node* middle = new Node(points[1]);
 		Node* right = new Node(points[2]);
 
-		// Smaller because we start drawing in the top-left corner!
-		bool middleIsUp = middle->point.Y < right->point.Y;
+		// Check if middle node is up or down to determine neighbors.
+		bool middleIsUp = isPointLeftOfLine(Line(left, right), middle);
 		left->clockwiseNext = middleIsUp ? middle : right;
 		left->counterclockNext = middleIsUp ? right : middle;
 		middle->clockwiseNext = middleIsUp ? right : left;
@@ -272,18 +285,22 @@ Hull merge(Hull left, Hull right)
 	auto upperTangent = findUpperTangentOfHulls(left, right);
 	auto lowerTangent = findLowerTangentOfHulls(left, right);
 
-	//deleting nodes that are not connected to the new hull anymore
-	auto currentNode = upperTangent.first->counterclockNext;
-	while (currentNode != lowerTangent.second) {
-		auto deleteNode = currentNode;
-		currentNode = currentNode->counterclockNext;
-		delete deleteNode;
+	if (upperTangent.first != lowerTangent.second) {
+		//deleting nodes that are not connected to the new hull anymore
+		auto currentNode = upperTangent.first->counterclockNext;
+		while (currentNode != lowerTangent.second) {
+			auto deleteNode = currentNode;
+			currentNode = currentNode->counterclockNext;
+			delete deleteNode;
+		}
 	}
-	currentNode = lowerTangent.first->counterclockNext;
-	while (currentNode != upperTangent.second) {
-		auto deleteNode = currentNode;
-		currentNode = currentNode->counterclockNext;
-		delete deleteNode;
+	if (upperTangent.second != lowerTangent.first) {
+		auto currentNode = lowerTangent.first->counterclockNext;
+		while (currentNode != upperTangent.second) {
+			auto deleteNode = currentNode;
+			currentNode = currentNode->counterclockNext;
+			delete deleteNode;
+		}
 	}
 
 	//connecting points on both tangents to each other, so the hull is correctly connected
@@ -378,10 +395,121 @@ bool isUpperTangentOfHull(Line tangent, Hull hull) {
 #pragma endregion
 
 #pragma region Visual Hull Calculation
-Hull calculateVisualHull(std::vector<Point>& points, Scene& scene)
+Hull calculateHullVisual(std::vector<Point>& points, Scene& scene)
 {
-	//TODO: calculate Hull
-	Hull hull;
+	unsigned int half = points.size() / 2;
+	std::vector<Point> left(points.begin(), points.begin() + half);
+	std::vector<Point> right(points.begin() + half, points.end());
+	scene.AddWorkingPoints(points);
+	scene.Render();
+	scene.ClearWorkingPoints();
+
+	Hull leftHull;
+	Hull rightHull;
+
+	// Split until each vector has 3 or 2 values.
+	if (left.size() > 3) {
+		leftHull = calculateHullVisual(left, scene);
+	}
+	else {
+		leftHull = generateSmallestHullVisual(left, scene);
+	}
+
+	if (right.size() > 3) {
+		rightHull = calculateHullVisual(right, scene);
+	}
+	else {
+		rightHull = generateSmallestHullVisual(right, scene);
+	}
+
+	Hull hull = mergeVisual(leftHull, rightHull, scene);
+	return hull;
+}
+
+Hull generateSmallestHullVisual(std::vector<Point>& points, Scene& scene)
+{
+	Hull hull = Hull();
+	if (points.size() == 2) {
+		Node* left = new Node(points[0]);
+		Node* right = new Node(points[1]);
+		left->clockwiseNext = right;
+		left->counterclockNext = right;
+		right->clockwiseNext = left;
+		right->counterclockNext = left;
+		hull.left = left;
+		hull.right = right;
+
+		scene.AddWorkingPoint(left->point);
+		scene.AddWorkingPoint(right->point);
+		scene.Render();
+
+		scene.AddCorrectPoint(left->point);
+		scene.Render();
+		scene.AddCorrectPoint(right->point);
+		scene.Render();
+		scene.AddDefaultLine(Line(left, right));
+		scene.Render();
+	}
+	else {
+		Node* left = new Node(points[0]);
+		Node* middle = new Node(points[1]);
+		Node* right = new Node(points[2]);
+
+		scene.AddWorkingPoint(left->point);
+		scene.AddWorkingPoint(right->point);
+		scene.AddWorkingPoint(middle->point);
+		scene.Render();
+
+		scene.AddCorrectPoint(left->point);
+		scene.AddWorkingLine(Line(left, middle));
+		scene.Render();
+		scene.AddSecondWorkingLine(Line(left, right));
+		scene.Render();
+		scene.ClearSecondWorkingLines();
+
+		if (isPointLeftOfLine(Line(left, right), middle)) {
+			scene.ClearWorkingPoints();
+			scene.ClearWorkingLines();
+			scene.AddDefaultLine(Line(left, middle));
+			scene.AddCorrectPoint(middle->point);
+			scene.Render();
+			scene.AddDefaultLine(Line(middle, right));
+			scene.AddCorrectPoint(right->point);
+			scene.Render();
+		}
+		else {
+			scene.ClearWorkingLines();
+			scene.AddErrorLine(Line(left, middle));
+			scene.AddErrorPoint(middle->point);
+			scene.Render();
+			scene.ClearErrorLines();
+			scene.AddDefaultLine(Line(left, right));
+			scene.AddCorrectPoint(right->point);
+			scene.Render();
+			scene.AddDefaultLine(Line(right, middle));
+			scene.AddCorrectPoint(middle->point);
+			scene.Render();
+		}
+
+		bool middleIsUp;
+		// Check if middle node is up or down to determine neighbors.
+
+		middleIsUp = !isPointLeftOfLine(Line(left, right), middle);
+
+		left->clockwiseNext = middleIsUp ? middle : right;
+		left->counterclockNext = middleIsUp ? right : middle;
+		middle->clockwiseNext = middleIsUp ? right : left;
+		middle->counterclockNext = middleIsUp ? left : right;
+		right->clockwiseNext = middleIsUp ? left : middle;
+		right->counterclockNext = middleIsUp ? middle : left;
+
+		hull.left = left;
+		hull.right = right;
+	}
+	scene.ClearAllExtras();
+	scene.ClearDefaultLines();
+	scene.AddCorrectHull(hull);
+	scene.Render();
 	return hull;
 }
 
@@ -406,26 +534,37 @@ Hull mergeVisual(Hull left, Hull right, Scene& scene) {
 	scene.AddErrorHull(right);
 	scene.Render();
 
-	//deleting nodes that are not connected to the new hull anymore
-	auto currentNode = upperTangent.first->counterclockNext;
-	while (currentNode != lowerTangent.second) {
-		auto deleteNode = currentNode;
-		currentNode = currentNode->counterclockNext;
-		delete deleteNode;
+	if (upperTangent.first != lowerTangent.second) {
+		//deleting nodes that are not connected to the new hull anymore
+		auto currentNode = upperTangent.first->counterclockNext;
+		while (currentNode != lowerTangent.second) {
+			auto deleteNode = currentNode;
+			currentNode = currentNode->counterclockNext;
+			delete deleteNode;
+		}
 	}
-	currentNode = lowerTangent.first->counterclockNext;
-	while (currentNode != upperTangent.second) {
-		auto deleteNode = currentNode;
-		currentNode = currentNode->counterclockNext;
-		delete deleteNode;
+	if (upperTangent.second != lowerTangent.first) {
+		auto currentNode = lowerTangent.first->counterclockNext;
+		while (currentNode != upperTangent.second) {
+			auto deleteNode = currentNode;
+			currentNode = currentNode->counterclockNext;
+			delete deleteNode;
+		}
 	}
 
 	//connecting points on both tangents to each other, so the hull is correctly connected
 	upperTangent.first->counterclockNext = upperTangent.second;
 	upperTangent.second->clockwiseNext = upperTangent.first;
 
-	lowerTangent.first->counterclockNext = lowerTangent.second;
-	lowerTangent.second->clockwiseNext = lowerTangent.first;
+	// Edge case "line": Connect to extremes to prevent infinite loop (missing second tangent -> missing path).
+	if (upperTangent.first == lowerTangent.second && upperTangent.second == lowerTangent.first) {
+		left.left->clockwiseNext = right.right;
+		right.right->counterclockNext = left.left;
+	}
+	else {
+		lowerTangent.first->counterclockNext = lowerTangent.second;
+		lowerTangent.second->clockwiseNext = lowerTangent.first;
+	}
 
 	//creating a new hull and setting left and right to corresponding values of previous hulls, so we dont have to sort again
 	Hull newHull;
@@ -551,7 +690,7 @@ Line visualFindUpperTangentOfHulls(Hull left, Hull right, Scene& scene) {
 			scene.ClearCorrectPoints();
 		}
 		//is new line still viable for the left hull
-		isUpperTangentOfRight = visualIsUpperTangentOfHull(upperTangent, left, scene);
+		isUpperTangentOfLeft = visualIsUpperTangentOfHull(upperTangent, left, scene);
 		scene.Render();
 		scene.ClearErrorPoints();
 		scene.ClearCorrectPoints();
@@ -565,6 +704,10 @@ bool visualIsUpperTangentOfHull(Line tangent, Hull hull, Scene& scene) {
 
 	auto currentPoint = hull.left;
 	bool upper = true;
+
+	if (tangent.first->point.X == tangent.second->point.X && tangent.first->point.Y == tangent.second->point.Y)
+		return false;
+
 	//iterating over the whole hull
 	do {
 		//if a point is left of the line, life cannot be upper tangent of whole whole
