@@ -12,6 +12,7 @@
 
 #define WINDOW_WIDTH 800
 #define WINDOW_HEIGTH 600
+#define POINT_GENERATION_BORDER 10
 
 #define DRAW_GRID_SIZE 10
 
@@ -275,7 +276,10 @@ std::vector<Point> generateRandomPoints(unsigned int amount)
 	srand(1);
 	for (int i = 0; i < amount; i++) {
 		//TODO: use better rand function
-		Point point(rand() % WINDOW_WIDTH, rand() % WINDOW_HEIGTH);
+		float x = POINT_GENERATION_BORDER + static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / (WINDOW_WIDTH- POINT_GENERATION_BORDER - POINT_GENERATION_BORDER)));
+		float y = POINT_GENERATION_BORDER + static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / (WINDOW_HEIGTH- POINT_GENERATION_BORDER - POINT_GENERATION_BORDER)));
+
+		Point point(x, y);
 		points.push_back(point);
 
 	}
