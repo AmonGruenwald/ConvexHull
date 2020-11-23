@@ -13,10 +13,12 @@
 #define WINDOW_WIDTH 800
 #define WINDOW_HEIGTH 600
 
+#define DRAW_GRID_SIZE 10
+
 // Delimiter that defines the position of a point in a file (e.g. 10,20).
 #define DATA_DELIMITER ','
 
-enum class ArgumentType { LOAD, POINT_AMOUNT, VISUAL_MODE, HELP };
+enum class ArgumentType { LOAD, POINT_AMOUNT, VISUAL_MODE, DRAW_MODE, HELP };
 
 std::map<std::string, ArgumentType> argumentMap{
 	{"--load", ArgumentType::LOAD},
@@ -24,11 +26,13 @@ std::map<std::string, ArgumentType> argumentMap{
 	{"-p", ArgumentType::POINT_AMOUNT},
 	{"--visual", ArgumentType::VISUAL_MODE},
 	{"-v", ArgumentType::VISUAL_MODE},
+	{"--draw", ArgumentType::DRAW_MODE},
 	{"--help", ArgumentType::HELP},
 };
 
 
 #pragma region Function declarations
+void DivideAndConquer(std::vector<Point>& points, Scene& scene);
 //Setup functions
 void handleArguments(int argc, char* argv[]);
 void showWrongArguments();
@@ -56,37 +60,120 @@ bool isPointLeftOfLine(Line line, Node* point);
 #pragma endregion
 
 bool visualMode = false;
+bool drawMode = false;
 std::string filePath = "";
-//std::string filePath = "..\\Testcases\\TwoTriangles.txt";
-int pointAmount = 150;
+//std::string filePath = "..\\Testcases\\TwoTwoPointEdges.txt";
+int pointAmount = 1000000;
 
 
 int main(int argc, char* argv[])
 {
 	handleArguments(argc, argv);
+	sf::RenderWindow window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGTH), "Divide and Conquer");
+	Scene scene(window);
 
 	std::vector<Point> points;
-	if (filePath != "")
+	// Generate random points, if there are no
+	if (!drawMode && filePath != "")
 		points = generatePointsFromFile(filePath);
-	else
+	else if (!drawMode)
 	{
 		points = generateRandomPoints(pointAmount);
 		// points = generateRandomPointsOnCircle(pointAmount);
 	}
 
+	if (!drawMode) {
+		scene.AddDefaultPoints(points);
+		scene.Render();
+	}
+
+	while (window.isOpen())
+	{
+		sf::Event event;
+		while (window.pollEvent(event))
+		{
+			if (event.type == sf::Event::Closed)
+				window.close();
+
+			// Allow user drawing.
+			if (drawMode) {
+				sf::Vector2i pixelPos = sf::Mouse::getPosition(window);
+				sf::Vector2f worldPos = window.mapPixelToCoords(pixelPos);
+				int x = ((std::abs((int)worldPos.x) + DRAW_GRID_SIZE / 2) / DRAW_GRID_SIZE) * DRAW_GRID_SIZE;
+				int y = ((std::abs((int)worldPos.y) + DRAW_GRID_SIZE / 2) / DRAW_GRID_SIZE) * DRAW_GRID_SIZE;
+				Point mousePos = Point(x, y);
+				scene.AddWorkingPoint(mousePos);
+
+				// Add point at current mouse pos.
+				if ((event.type == sf::Event::MouseButtonPressed) && (event.key.code == sf::Mouse::Left)) {
+					scene.AddDefaultPoint(mousePos);
+					points.push_back(mousePos);
+				}
+
+				// Remove point at current mouse pos.
+				if ((event.type == sf::Event::MouseButtonPressed) && (event.key.code == sf::Mouse::Right)) {
+					auto it = points.begin();
+					while (it != points.end())
+					{
+						if (*it == mousePos) {
+							points.erase(it);
+							break;
+						}
+						it++;
+					}
+					scene.AddDefaultPoints(points);
+				}
+				scene.Render();
+				scene.ClearWorkingPoints();
+			}
+
+			// Clear window. Only works before and after the algorithm.
+			if ((event.type == sf::Event::KeyPressed) && (event.key.code == sf::Keyboard::R)) {
+				drawMode = true;
+				scene.ClearAll();
+				scene.IsAnimating = false;
+				scene.Render();
+				points.clear();
+			}
+
+			// Start algorithm.
+			if ((event.type == sf::Event::KeyPressed) && (event.key.code == sf::Keyboard::Enter)) {
+				if (points.size() < 2) {
+					std::cerr << "At least 2 points are required!" << std::endl;
+					continue;
+				}
+				scene.ClearAll();
+				scene.Render();
+				DivideAndConquer(points, scene);
+				scene.IsAnimating = false;
+			}
+			// Activate/Deactivate step by step.
+			if ((event.type == sf::Event::KeyPressed) && (event.key.code == sf::Keyboard::S))
+				scene.GoStepByStep = !scene.GoStepByStep;
+		}
+	}
+
+	//TODO: memory cleanup
+}
+
+void DivideAndConquer(std::vector<Point>& points, Scene& scene)
+{
 	//TODO: Better sorting algorithm (quicksort?).
-	// Sort points by their x coordinates.
-	std::sort(points.begin(), points.end(), [](Point& a, Point& b) { return a.X == b.X ? a.Y < b.Y : a.X < b.X; });
+	// Sort points by their x coordinates. If on same x, sort by y.
+	std::sort(points.begin(), points.end(), [](Point& a, Point& b) { return a < b; });
 
 	//TODO: Fix it smarter maybe, i dont fucking know lol
 	//Quick fix removing duplicates because we still dont catch all edge cases
 	points.erase(std::unique(points.begin(), points.end()), points.end());
-	sf::RenderWindow window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGTH), "Divide and Conquer");
-	Scene scene(window);
+
 	scene.AddDefaultPoints(points);
+	scene.GoStepByStep = false;
 	scene.Render();
+
 	Hull hull;
 	if (visualMode) {
+		scene.GoStepByStep = true;
+		scene.IsAnimating = true;
 		hull = calculateHullVisual(points, scene);
 	}
 	else {
@@ -95,23 +182,14 @@ int main(int argc, char* argv[])
 		auto end = std::chrono::high_resolution_clock::now();
 		std::cout << "Time: " << (std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()) << " microseconds" << std::endl;
 	}
+
+	// Draw result
 	scene.ClearAll();
 	scene.AddDefaultPoints(points);
 	scene.AddCorrectHull(hull);
 	scene.Render();
-	
-	while (window.isOpen())
-	{
-		sf::Event event;
-		while (window.pollEvent(event))
-		{
-			if (event.type == sf::Event::Closed)
-				window.close();
-		}
-	}
-
-	//TODO: memory cleanup
 }
+
 #pragma region Argument Handling
 void handleArguments(int argc, char* argv[])
 {
@@ -138,6 +216,9 @@ void handleArguments(int argc, char* argv[])
 		case ArgumentType::VISUAL_MODE:
 			visualMode = true;
 			break;
+		case ArgumentType::DRAW_MODE:
+			drawMode = true;
+			break;
 		case ArgumentType::HELP:
 			showHelp();
 			std::exit(0);
@@ -161,6 +242,7 @@ void showHelp()
 	std::cout << "--load <file> \t\t\t-> Filename to read from." << std::endl;
 	std::cout << "--points [-p] <numberOfPoints> \t-> Number of random points to be generated." << std::endl;
 	std::cout << "--visual [-v] \t\t\t-> Show visualization." << std::endl;
+	std::cout << "--draw \t\t\t\t-> Allows the user to add points with the mouse." << std::endl;
 	std::cout << "--help \t\t\t\t-> Prints out this message." << std::endl;
 }
 #pragma endregion
@@ -190,19 +272,11 @@ std::vector<Point> generatePointsFromFile(const std::string& filePath)
 std::vector<Point> generateRandomPoints(unsigned int amount)
 {
 	std::vector<Point> points;
+	srand(1);
 	for (int i = 0; i < amount; i++) {
 		//TODO: use better rand function
 		Point point(rand() % WINDOW_WIDTH, rand() % WINDOW_HEIGTH);
-		/*bool contains = false;
-		for (auto p : points)
-		{
-			if (p.X == point.X && p.Y == point.Y)
-				contains = true;
-		}
-		if (contains)
-			i--;
-		else*/
-			points.push_back(point);
+		points.push_back(point);
 
 	}
 	return points;
@@ -225,6 +299,10 @@ std::vector<Point> generateRandomPointsOnCircle(unsigned int amount)
 #pragma region Optimized Hull Calculation
 Hull calculateHull(std::vector<Point>& points)
 {
+	// If smaller than 4, just calculate hull and return it. No need for merging.
+	if (points.size() <= 3) {
+		return generateSmallestHull(points);
+	}
 	unsigned int half = points.size() / 2;
 	std::vector<Point> left(points.begin(), points.begin() + half);
 	std::vector<Point> right(points.begin() + half, points.end());
@@ -277,7 +355,6 @@ Hull generateSmallestHull(std::vector<Point>& points)
 		Node* right = new Node(points[2]);
 
 		// Check if middle node is up or down to determine neighbors.
-
 		bool middleIsUp = isPointLeftOfLine(Line(left, right), middle);
 
 		left->clockwiseNext = middleIsUp ? middle : right;
@@ -298,7 +375,7 @@ Hull merge(Hull left, Hull right) {
 	//finding both tangents
 	auto upperTangent = findUpperTangentOfHulls(left, right, left.right, right.left);
 
-	auto lowerTangent = findUpperTangentOfHulls(right, left,  right.left, left.right);
+	auto lowerTangent = findUpperTangentOfHulls(right, left, right.left, left.right);
 
 	if (upperTangent.first != lowerTangent.second) {
 		//deleting nodes that are not connected to the new hull anymore
@@ -340,7 +417,7 @@ Hull merge(Hull left, Hull right) {
 	return newHull;
 }
 
-Line findUpperTangentOfHulls(Hull left, Hull right , Node* leftRight, Node* rightLeft) {
+Line findUpperTangentOfHulls(Hull left, Hull right, Node* leftRight, Node* rightLeft) {
 
 	//starting with the line connecting the opposite extreme points of both hulls
 	Line upperTangent(leftRight, rightLeft);
@@ -379,6 +456,7 @@ bool isUpperTangentOfHull(Line tangent, Hull hull) {
 
 	auto currentPoint = hull.left;
 
+	// TODO: not needed if we only allow unique points
 	if (tangent.first->point.X == tangent.second->point.X && tangent.first->point.Y == tangent.second->point.Y)
 		return false;
 
@@ -390,6 +468,7 @@ bool isUpperTangentOfHull(Line tangent, Hull hull) {
 		}
 		currentPoint = currentPoint->clockwiseNext;
 	} while (currentPoint != hull.left);
+	return true;
 }
 
 #pragma endregion
@@ -397,6 +476,9 @@ bool isUpperTangentOfHull(Line tangent, Hull hull) {
 #pragma region Visual Hull Calculation
 Hull calculateHullVisual(std::vector<Point>& points, Scene& scene)
 {
+	if (points.size() <= 3) {
+		return generateSmallestHull(points);
+	}
 	unsigned int half = points.size() / 2;
 	std::vector<Point> left(points.begin(), points.begin() + half);
 	std::vector<Point> right(points.begin() + half, points.end());
@@ -407,7 +489,6 @@ Hull calculateHullVisual(std::vector<Point>& points, Scene& scene)
 	Hull leftHull;
 	Hull rightHull;
 
-	// Split until each vector has 3 or 2 values.
 	if (left.size() > 3) {
 		leftHull = calculateHullVisual(left, scene);
 	}
@@ -651,6 +732,7 @@ bool visualIsUpperTangentOfHull(Line tangent, Hull hull, Scene& scene) {
 	auto currentPoint = hull.left;
 	bool upper = true;
 
+	// TODO: not needed if we only allow unique points
 	if (tangent.first->point.X == tangent.second->point.X && tangent.first->point.Y == tangent.second->point.Y)
 		return false;
 
