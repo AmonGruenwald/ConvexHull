@@ -7,17 +7,13 @@
 
 class Scene {
 public:
-	bool GoStepByStep = true;
+	bool GoStepByStep = false;
+	bool IsAnimating = false;
 
 	Scene(sf::RenderWindow& window) :window(window) {};
 
 	void Render() {
-		
-		while(GoStepByStep && !sf::Keyboard::isKeyPressed(sf::Keyboard::Space))
-		{
-			if (sf::Keyboard::isKeyPressed(sf::Keyboard::E))
-				GoStepByStep = false;
-		}
+		handleInput();
 
 		window.clear(sf::Color::White);
 		for (auto p : DefaultPoints) {
@@ -55,7 +51,8 @@ public:
 		}
 		window.display();
 
-		std::this_thread::sleep_for(std::chrono::milliseconds(GoStepByStep ? manualStepDelay : animationStepTime));
+		if (IsAnimating)
+			std::this_thread::sleep_for(std::chrono::milliseconds(GoStepByStep ? stepByStepDelay : animationStepTime));
 	}
 
 	inline void AddDefaultPoint(Point point) { DefaultPoints.push_back(point); }
@@ -115,8 +112,8 @@ public:
 private:
 
 	sf::RenderWindow& window;
-	const int animationStepTime = 1000;
-	const int manualStepDelay = 0;
+	const int animationStepTime = 500;
+	const int stepByStepDelay = 300;
 	const float pointRadius = 3;
 
 	const sf::Color DefaultColor = sf::Color::Black;
@@ -137,7 +134,30 @@ private:
 	std::vector<Line> SecondWorkingLines;
 	std::vector<Line> ErrorLines;
 
+	void handleInput() {
+		// Activate animation.
+		if (sf::Keyboard::isKeyPressed(sf::Keyboard::A))
+			GoStepByStep = false;
+		// Deactivate animation -> enable step by step.
+		if (sf::Keyboard::isKeyPressed(sf::Keyboard::S))
+			GoStepByStep = true;
+		// Fast fowward to end.
+		if (sf::Keyboard::isKeyPressed(sf::Keyboard::F))
+			IsAnimating = false;
 
+		while (IsAnimating && GoStepByStep && !sf::Keyboard::isKeyPressed(sf::Keyboard::Space))
+		{
+			// Activate animation.
+			if (sf::Keyboard::isKeyPressed(sf::Keyboard::A))
+				GoStepByStep = false;
+			// Deactivate animation -> enable step by step.
+			if (sf::Keyboard::isKeyPressed(sf::Keyboard::S))
+				GoStepByStep = true;
+			// Fast fowward to end.
+			if (sf::Keyboard::isKeyPressed(sf::Keyboard::F))
+				IsAnimating = false;
+		}
+	}
 
 #pragma region Display Functions
 	void displayPoint(const Point& p, const sf::Color& color) {
@@ -161,7 +181,7 @@ private:
 		sf::Vertex lineDrawing[] =
 		{
 			sf::Vertex(sf::Vector2f(line.first->point.X, line.first->point.Y)),
- 			sf::Vertex(sf::Vector2f(line.second->point.X, line.second->point.Y))
+			sf::Vertex(sf::Vector2f(line.second->point.X, line.second->point.Y))
 		};
 		lineDrawing->color = color;
 		window.draw(lineDrawing, 2, sf::Lines);
