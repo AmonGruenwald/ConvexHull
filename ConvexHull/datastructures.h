@@ -1,7 +1,7 @@
 #pragma once
 
 #include <utility>
- 
+
 struct Point {
 	float X;
 	float Y;
@@ -10,12 +10,12 @@ struct Point {
 
 	bool operator<(const Point& rhs) const
 	{
-		return X < rhs.X;
+		return X == rhs.X ? Y < rhs.Y : X < rhs.X;
 	}
 
 	bool operator==(const Point& rhs) const
 	{
-		return (X == rhs.X&&Y==rhs.Y);
+		return (X == rhs.X && Y == rhs.Y);
 	}
 };
 
