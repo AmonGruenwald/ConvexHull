@@ -41,23 +41,21 @@ std::vector<Point> generateRandomPointsOnCircle(unsigned int amount);
 Hull calculateHull(std::vector<Point>& points);
 Hull generateSmallestHull(std::vector<Point>& points);
 Hull merge(Hull left, Hull right);
-Line findLowerTangentOfHulls(Hull left, Hull right);
-Line findUpperTangentOfHulls(Hull left, Hull right);
+Line findUpperTangentOfHulls(Hull left, Hull right, Node* leftRight, Node* rightLeft);
 bool isUpperTangentOfHull(Line tangent, Hull hull);
 
 //Visual calculation functions
 Hull calculateHullVisual(std::vector<Point>& points, Scene& scene);
 Hull generateSmallestHullVisual(std::vector<Point>& points, Scene& scene);
 Hull mergeVisual(Hull left, Hull right, Scene& scene);
-Line visualFindLowerTangentOfHulls(Hull left, Hull right, Scene& scene);
-Line visualFindUpperTangentOfHulls(Hull left, Hull right, Scene& scene);
+Line visualFindUpperTangentOfHulls(Hull left, Hull right, Node* leftRight, Node* rightLeft, Scene& scene);
 bool visualIsUpperTangentOfHull(Line tangent, Hull hull, Scene& scene);
 
 //Utility functions
 bool isPointLeftOfLine(Line line, Node* point);
 #pragma endregion
 
-bool visualMode = true;
+bool visualMode = false;
 std::string filePath = "";
 //std::string filePath = "..\\Testcases\\TwoTriangles.txt";
 int pointAmount = 150;
@@ -298,9 +296,9 @@ Hull generateSmallestHull(std::vector<Point>& points)
 Hull merge(Hull left, Hull right) {
 
 	//finding both tangents
-	auto upperTangent = findUpperTangentOfHulls(left, right);
+	auto upperTangent = findUpperTangentOfHulls(left, right, left.right, right.left);
 
-	auto lowerTangent = findLowerTangentOfHulls(left, right);
+	auto lowerTangent = findUpperTangentOfHulls(right, left,  right.left, left.right);
 
 	if (upperTangent.first != lowerTangent.second) {
 		//deleting nodes that are not connected to the new hull anymore
@@ -342,44 +340,10 @@ Hull merge(Hull left, Hull right) {
 	return newHull;
 }
 
-Line findLowerTangentOfHulls(Hull left, Hull right) {
-
-	//because we still use the method to check if a line is the upper tangent of the hull, we have to switch the direction of the tangent
-	Line lowerTangent(right.left, left.right);
-
-	//checking if the line is already viable for both hull
-	bool isLowerTangentOfLeft = isUpperTangentOfHull(lowerTangent, left);
-	bool isLowerTangentOfRight = isUpperTangentOfHull(lowerTangent, right);
-	//while it is not viable for both hulls continue trying different points
-	
-	while (!isLowerTangentOfLeft || !isLowerTangentOfRight) {
-		//while it is not viable for the left hull
-		while (!isLowerTangentOfLeft) {
-			//move the point on the left hull on step further
-			lowerTangent.second = lowerTangent.second->clockwiseNext;
-			//and check again
-			isLowerTangentOfLeft = isUpperTangentOfHull(lowerTangent, left);
-		}
-		//is new line tangent of right hull
-		isLowerTangentOfRight = isUpperTangentOfHull(lowerTangent, right);
-		//if its not
-		while (!isLowerTangentOfRight) {
-			//continue moving point on right hull
-			lowerTangent.first = lowerTangent.first->counterclockNext;
-			//and rechecking it until the line is viable
-			isLowerTangentOfRight = isUpperTangentOfHull(lowerTangent, right);
-		}
-		//is new line still viable for the left hull
-		isLowerTangentOfLeft = isUpperTangentOfHull(lowerTangent, left);
-	}
-	//if it is were done
-	return lowerTangent;
-}
-
-Line findUpperTangentOfHulls(Hull left, Hull right) {
+Line findUpperTangentOfHulls(Hull left, Hull right , Node* leftRight, Node* rightLeft) {
 
 	//starting with the line connecting the opposite extreme points of both hulls
-	Line upperTangent(left.right, right.left);
+	Line upperTangent(leftRight, rightLeft);
 
 	//checking if the line is already viable for both hull
 	bool isUpperTangentOfLeft = isUpperTangentOfHull(upperTangent, left);
@@ -563,11 +527,11 @@ Hull mergeVisual(Hull left, Hull right, Scene& scene) {
 
 	//finding both tangents
 
-	auto upperTangent = visualFindUpperTangentOfHulls(left, right, scene);
+	auto upperTangent = visualFindUpperTangentOfHulls(left, right, left.right, right.left, scene);
 	scene.AddWorkingLine(upperTangent);
 	scene.Render();
 
-	auto lowerTangent = visualFindLowerTangentOfHulls(left, right, scene);
+	auto lowerTangent = visualFindUpperTangentOfHulls(right, left, right.left, left.right, scene);
 	scene.AddWorkingLine(lowerTangent);
 	scene.Render();
 
@@ -621,70 +585,10 @@ Hull mergeVisual(Hull left, Hull right, Scene& scene) {
 	return newHull;
 }
 
-Line visualFindLowerTangentOfHulls(Hull left, Hull right, Scene& scene) {
-
-	//because we still use the method to check if a line is the upper tangent of the hull, we have to switch the direction of the tangent
-	Line lowerTangent(right.left, left.right);
-
-	scene.ClearSecondWorkingLines();
-	scene.AddSecondWorkingLine(lowerTangent);
-	scene.Render();
-
-	//checking if the line is already viable for both hull
-	bool isLowerTangentOfLeft = visualIsUpperTangentOfHull(lowerTangent, left, scene);
-	bool isLowerTangentOfRight = visualIsUpperTangentOfHull(lowerTangent, right, scene);
-	scene.Render();
-	scene.ClearErrorPoints();
-	scene.ClearCorrectPoints();
-	//while it is not viable for both hulls continue trying different points
-	while (!isLowerTangentOfLeft || !isLowerTangentOfRight) {
-		//while it is not viable for the left hull
-		while (!isLowerTangentOfLeft) {
-			//move the point on the left hull on step further
-			lowerTangent.second = lowerTangent.second->clockwiseNext;
-			scene.ClearSecondWorkingLines();
-			scene.AddSecondWorkingLine(lowerTangent);
-			scene.Render();
-			//and check again
-			isLowerTangentOfLeft = visualIsUpperTangentOfHull(lowerTangent, left, scene);
-			scene.Render();
-			scene.ClearErrorPoints();
-			scene.ClearCorrectPoints();
-		}
-		//is new line tangent of right hull
-		isLowerTangentOfRight = visualIsUpperTangentOfHull(lowerTangent, right, scene);
-		scene.Render();
-		scene.ClearErrorPoints();
-		scene.ClearCorrectPoints();
-		//if its not
-		while (!isLowerTangentOfRight) {
-			//continue moving point on right hull
-			lowerTangent.first = lowerTangent.first->counterclockNext;
-			scene.ClearSecondWorkingLines();
-			scene.AddSecondWorkingLine(lowerTangent);
-			scene.Render();
-			//and rechecking it until the line is viable
-			isLowerTangentOfRight = visualIsUpperTangentOfHull(lowerTangent, right, scene);
-			scene.Render();
-			scene.ClearErrorPoints();
-			scene.ClearCorrectPoints();
-		}
-		//is new line still viable for the left hull
-		isLowerTangentOfLeft = visualIsUpperTangentOfHull(lowerTangent, left, scene);
-		scene.Render();
-		scene.ClearErrorPoints();
-		scene.ClearCorrectPoints();
-	}
-
-	scene.ClearSecondWorkingLines();
-	//if it is were done
-	return lowerTangent;
-}
-
-Line visualFindUpperTangentOfHulls(Hull left, Hull right, Scene& scene) {
+Line visualFindUpperTangentOfHulls(Hull left, Hull right, Node* leftRight, Node* rightLeft, Scene& scene) {
 
 	//starting with the line connecting the opposite extreme points of both hulls
-	Line upperTangent(left.right, right.left);
+	Line upperTangent(leftRight, rightLeft);
 
 	scene.ClearSecondWorkingLines();
 	scene.AddSecondWorkingLine(upperTangent);
