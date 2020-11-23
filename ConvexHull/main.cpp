@@ -57,10 +57,10 @@ bool visualIsUpperTangentOfHull(Line tangent, Hull hull, Scene& scene);
 bool isPointLeftOfLine(Line line, Node* point);
 #pragma endregion
 
-bool visualMode = false;
+bool visualMode = true;
 std::string filePath = "";
-//std::string filePath = "..\\Testcases\\AnotherEdgeCase.txt";
-int pointAmount = 1000;
+//std::string filePath = "..\\Testcases\\TwoTriangles.txt";
+int pointAmount = 150;
 
 
 int main(int argc, char* argv[])
@@ -85,12 +85,11 @@ int main(int argc, char* argv[])
 	points.erase(std::unique(points.begin(), points.end()), points.end());
 	sf::RenderWindow window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGTH), "Divide and Conquer");
 	Scene scene(window);
+	scene.AddDefaultPoints(points);
+	scene.Render();
 	Hull hull;
 	if (visualMode) {
-		scene.AddDefaultPoints(points);
-		scene.Render();
 		hull = calculateHullVisual(points, scene);
-		scene.ClearAll();
 	}
 	else {
 		auto start = std::chrono::high_resolution_clock::now();
@@ -98,9 +97,11 @@ int main(int argc, char* argv[])
 		auto end = std::chrono::high_resolution_clock::now();
 		std::cout << "Time: " << (std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()) << " microseconds" << std::endl;
 	}
+	scene.ClearAll();
 	scene.AddDefaultPoints(points);
 	scene.AddCorrectHull(hull);
-
+	scene.Render();
+	
 	while (window.isOpen())
 	{
 		sf::Event event;
@@ -109,9 +110,6 @@ int main(int argc, char* argv[])
 			if (event.type == sf::Event::Closed)
 				window.close();
 		}
-		window.clear(sf::Color::White);
-
-		scene.Render();
 	}
 
 	//TODO: memory cleanup
@@ -197,15 +195,15 @@ std::vector<Point> generateRandomPoints(unsigned int amount)
 	for (int i = 0; i < amount; i++) {
 		//TODO: use better rand function
 		Point point(rand() % WINDOW_WIDTH, rand() % WINDOW_HEIGTH);
-		bool contains = false;
+		/*bool contains = false;
 		for (auto p : points)
 		{
 			if (p.X == point.X && p.Y == point.Y)
-				contains = false;
+				contains = true;
 		}
 		if (contains)
 			i--;
-		else
+		else*/
 			points.push_back(point);
 
 	}
@@ -280,16 +278,9 @@ Hull generateSmallestHull(std::vector<Point>& points)
 		Node* middle = new Node(points[1]);
 		Node* right = new Node(points[2]);
 
-
-		if (isPointLeftOfLine(Line(left, right), middle)) {
-		}
-		else {
-		}
-
-		bool middleIsUp;
 		// Check if middle node is up or down to determine neighbors.
 
-		middleIsUp = !isPointLeftOfLine(Line(left, right), middle);
+		bool middleIsUp = isPointLeftOfLine(Line(left, right), middle);
 
 		left->clockwiseNext = middleIsUp ? middle : right;
 		left->counterclockNext = middleIsUp ? right : middle;
@@ -306,43 +297,41 @@ Hull generateSmallestHull(std::vector<Point>& points)
 
 Hull merge(Hull left, Hull right) {
 
-
 	//finding both tangents
-
 	auto upperTangent = findUpperTangentOfHulls(left, right);
 
 	auto lowerTangent = findLowerTangentOfHulls(left, right);
 
 	if (upperTangent.first != lowerTangent.second) {
 		//deleting nodes that are not connected to the new hull anymore
-		auto currentNode = upperTangent.first->counterclockNext;
+		auto currentNode = upperTangent.first->clockwiseNext;
 		while (currentNode != lowerTangent.second) {
 			auto deleteNode = currentNode;
-			currentNode = currentNode->counterclockNext;
+			currentNode = currentNode->clockwiseNext;
 			delete deleteNode;
 		}
 	}
 	if (upperTangent.second != lowerTangent.first) {
-		auto currentNode = lowerTangent.first->counterclockNext;
+		auto currentNode = lowerTangent.first->clockwiseNext;
 		while (currentNode != upperTangent.second) {
 			auto deleteNode = currentNode;
-			currentNode = currentNode->counterclockNext;
+			currentNode = currentNode->clockwiseNext;
 			delete deleteNode;
 		}
 	}
 
 	//connecting points on both tangents to each other, so the hull is correctly connected
-	upperTangent.first->counterclockNext = upperTangent.second;
-	upperTangent.second->clockwiseNext = upperTangent.first;
+	upperTangent.first->clockwiseNext = upperTangent.second;
+	upperTangent.second->counterclockNext = upperTangent.first;
 
 	// Edge case "line": Connect to extremes to prevent infinite loop (missing second tangent -> missing path).
 	if (upperTangent.first == lowerTangent.second && upperTangent.second == lowerTangent.first) {
-		left.left->clockwiseNext = right.right;
-		right.right->counterclockNext = left.left;
+		left.left->counterclockNext = right.right;
+		right.right->clockwiseNext = left.left;
 	}
 	else {
-		lowerTangent.first->counterclockNext = lowerTangent.second;
-		lowerTangent.second->clockwiseNext = lowerTangent.first;
+		lowerTangent.first->clockwiseNext = lowerTangent.second;
+		lowerTangent.second->counterclockNext = lowerTangent.first;
 	}
 
 	//creating a new hull and setting left and right to corresponding values of previous hulls, so we dont have to sort again
@@ -367,7 +356,7 @@ Line findLowerTangentOfHulls(Hull left, Hull right) {
 		//while it is not viable for the left hull
 		while (!isLowerTangentOfLeft) {
 			//move the point on the left hull on step further
-			lowerTangent.second = lowerTangent.second->counterclockNext;
+			lowerTangent.second = lowerTangent.second->clockwiseNext;
 			//and check again
 			isLowerTangentOfLeft = isUpperTangentOfHull(lowerTangent, left);
 		}
@@ -376,7 +365,7 @@ Line findLowerTangentOfHulls(Hull left, Hull right) {
 		//if its not
 		while (!isLowerTangentOfRight) {
 			//continue moving point on right hull
-			lowerTangent.first = lowerTangent.first->clockwiseNext;
+			lowerTangent.first = lowerTangent.first->counterclockNext;
 			//and rechecking it until the line is viable
 			isLowerTangentOfRight = isUpperTangentOfHull(lowerTangent, right);
 		}
@@ -400,7 +389,7 @@ Line findUpperTangentOfHulls(Hull left, Hull right) {
 		//while it is not viable for the left hull
 		while (!isUpperTangentOfLeft) {
 			//move the point on the left hull on step further
-			upperTangent.first = upperTangent.first->clockwiseNext;
+			upperTangent.first = upperTangent.first->counterclockNext;
 			//and check again
 			isUpperTangentOfLeft = isUpperTangentOfHull(upperTangent, left);
 
@@ -411,7 +400,7 @@ Line findUpperTangentOfHulls(Hull left, Hull right) {
 		//if its not
 		while (!isUpperTangentOfRight) {
 			//continue moving point on right hull
-			upperTangent.second = upperTangent.second->counterclockNext;
+			upperTangent.second = upperTangent.second->clockwiseNext;
 			//and rechecking it until the line is viable
 			isUpperTangentOfRight = isUpperTangentOfHull(upperTangent, right);
 		}
@@ -521,7 +510,9 @@ Hull generateSmallestHullVisual(std::vector<Point>& points, Scene& scene)
 		scene.Render();
 		scene.ClearSecondWorkingLines();
 
-		if (isPointLeftOfLine(Line(left, right), middle)) {
+		bool middleIsUp = isPointLeftOfLine(Line(left, right), middle);
+
+		if (middleIsUp) {
 			scene.ClearWorkingPoints();
 			scene.ClearWorkingLines();
 			scene.AddDefaultLine(Line(left, middle));
@@ -545,10 +536,8 @@ Hull generateSmallestHullVisual(std::vector<Point>& points, Scene& scene)
 			scene.Render();
 		}
 
-		bool middleIsUp;
 		// Check if middle node is up or down to determine neighbors.
 
-		middleIsUp = !isPointLeftOfLine(Line(left, right), middle);
 
 		left->clockwiseNext = middleIsUp ? middle : right;
 		left->counterclockNext = middleIsUp ? right : middle;
@@ -572,7 +561,6 @@ Hull mergeVisual(Hull left, Hull right, Scene& scene) {
 	scene.AddCorrectHull(right);
 	scene.Render();
 
-
 	//finding both tangents
 
 	auto upperTangent = visualFindUpperTangentOfHulls(left, right, scene);
@@ -590,34 +578,34 @@ Hull mergeVisual(Hull left, Hull right, Scene& scene) {
 
 	if (upperTangent.first != lowerTangent.second) {
 		//deleting nodes that are not connected to the new hull anymore
-		auto currentNode = upperTangent.first->counterclockNext;
+		auto currentNode = upperTangent.first->clockwiseNext;
 		while (currentNode != lowerTangent.second) {
 			auto deleteNode = currentNode;
-			currentNode = currentNode->counterclockNext;
+			currentNode = currentNode->clockwiseNext;
 			delete deleteNode;
 		}
 	}
 	if (upperTangent.second != lowerTangent.first) {
-		auto currentNode = lowerTangent.first->counterclockNext;
+		auto currentNode = lowerTangent.first->clockwiseNext;
 		while (currentNode != upperTangent.second) {
 			auto deleteNode = currentNode;
-			currentNode = currentNode->counterclockNext;
+			currentNode = currentNode->clockwiseNext;
 			delete deleteNode;
 		}
 	}
 
 	//connecting points on both tangents to each other, so the hull is correctly connected
-	upperTangent.first->counterclockNext = upperTangent.second;
-	upperTangent.second->clockwiseNext = upperTangent.first;
+	upperTangent.first->clockwiseNext = upperTangent.second;
+	upperTangent.second->counterclockNext = upperTangent.first;
 
 	// Edge case "line": Connect to extremes to prevent infinite loop (missing second tangent -> missing path).
 	if (upperTangent.first == lowerTangent.second && upperTangent.second == lowerTangent.first) {
-		left.left->clockwiseNext = right.right;
-		right.right->counterclockNext = left.left;
+		left.left->counterclockNext = right.right;
+		right.right->clockwiseNext = left.left;
 	}
 	else {
-		lowerTangent.first->counterclockNext = lowerTangent.second;
-		lowerTangent.second->clockwiseNext = lowerTangent.first;
+		lowerTangent.first->clockwiseNext = lowerTangent.second;
+		lowerTangent.second->counterclockNext = lowerTangent.first;
 	}
 
 	//creating a new hull and setting left and right to corresponding values of previous hulls, so we dont have to sort again
@@ -653,7 +641,7 @@ Line visualFindLowerTangentOfHulls(Hull left, Hull right, Scene& scene) {
 		//while it is not viable for the left hull
 		while (!isLowerTangentOfLeft) {
 			//move the point on the left hull on step further
-			lowerTangent.second = lowerTangent.second->counterclockNext;
+			lowerTangent.second = lowerTangent.second->clockwiseNext;
 			scene.ClearSecondWorkingLines();
 			scene.AddSecondWorkingLine(lowerTangent);
 			scene.Render();
@@ -671,7 +659,7 @@ Line visualFindLowerTangentOfHulls(Hull left, Hull right, Scene& scene) {
 		//if its not
 		while (!isLowerTangentOfRight) {
 			//continue moving point on right hull
-			lowerTangent.first = lowerTangent.first->clockwiseNext;
+			lowerTangent.first = lowerTangent.first->counterclockNext;
 			scene.ClearSecondWorkingLines();
 			scene.AddSecondWorkingLine(lowerTangent);
 			scene.Render();
@@ -713,7 +701,7 @@ Line visualFindUpperTangentOfHulls(Hull left, Hull right, Scene& scene) {
 		//while it is not viable for the left hull
 		while (!isUpperTangentOfLeft) {
 			//move the point on the left hull on step further
-			upperTangent.first = upperTangent.first->clockwiseNext;
+			upperTangent.first = upperTangent.first->counterclockNext;
 			scene.ClearSecondWorkingLines();
 			scene.AddSecondWorkingLine(upperTangent);
 			scene.Render();
@@ -733,7 +721,7 @@ Line visualFindUpperTangentOfHulls(Hull left, Hull right, Scene& scene) {
 		//if its not
 		while (!isUpperTangentOfRight) {
 			//continue moving point on right hull
-			upperTangent.second = upperTangent.second->counterclockNext;
+			upperTangent.second = upperTangent.second->clockwiseNext;
 			scene.ClearSecondWorkingLines();
 			scene.AddSecondWorkingLine(upperTangent);
 			scene.Render();
