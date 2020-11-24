@@ -43,11 +43,11 @@ std::vector<Point> generateRandomPoints(unsigned int amount);
 std::vector<Point> generateRandomPointsOnCircle(unsigned int amount);
 
 //Optimized calculation functions
-Hull calculateHull(std::vector<Point>& points);
-Hull generateSmallestHull(std::vector<Point>& points);
-Hull merge(Hull left, Hull right);
-Line findUpperTangentOfHulls(Hull left, Hull right, Node* leftRight, Node* rightLeft);
-bool isUpperTangentOfHull(Line tangent, Hull hull);
+Hull calculateHull(std::vector<Point>& points, int left, int right);
+Hull generateSmallestHull(std::vector<Point>& points, int left, int right);
+Hull merge(Hull& left, Hull& right);
+Line findUpperTangentOfHulls(Hull& left, Hull& right, Node* leftRight, Node* rightLeft);
+bool isUpperTangentOfHull(Line& tangent, Hull& hull);
 
 //Visual calculation functions
 Hull calculateHullVisual(std::vector<Point>& points, Scene& scene);
@@ -65,7 +65,6 @@ bool drawMode = false;
 std::string filePath = "";
 //std::string filePath = "..\\Testcases\\TwoTwoPointEdges.txt";
 int pointAmount = 1000000;
-
 
 int main(int argc, char* argv[])
 {
@@ -179,7 +178,7 @@ void DivideAndConquer(std::vector<Point>& points, Scene& scene)
 	}
 	else {
 		auto start = std::chrono::high_resolution_clock::now();
-		hull = calculateHull(points);
+		hull = calculateHull(points, 0, points.size());
 		auto end = std::chrono::high_resolution_clock::now();
 		std::cout << "Time: " << (std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()) << " microseconds" << std::endl;
 	}
@@ -301,87 +300,73 @@ std::vector<Point> generateRandomPointsOnCircle(unsigned int amount)
 #pragma endregion
 
 #pragma region Optimized Hull Calculation
-Hull calculateHull(std::vector<Point>& points)
+
+Hull calculateHull(std::vector<Point>& points, int left, int right)
 {
+	int pointSize = right - left;
 	// If smaller than 4, just calculate hull and return it. No need for merging.
-	if (points.size() <= 3) {
-		return generateSmallestHull(points);
+	if (pointSize <= 3) {
+		return generateSmallestHull(points, left, right);
 	}
-	unsigned int half = points.size() / 2;
-	std::vector<Point> left(points.begin(), points.begin() + half);
-	std::vector<Point> right(points.begin() + half, points.end());
-
-	Hull leftHull;
-	Hull rightHull;
-
-	// Split until each vector has 3 or 2 values.
-	if (left.size() > 3) {
-		leftHull = calculateHull(left);
-	}
-	else {
-		leftHull = generateSmallestHull(left);
-	}
-
-	if (right.size() > 3) {
-		rightHull = calculateHull(right);
-	}
-	else {
-		rightHull = generateSmallestHull(right);
-	}
-
+	//else split and merge
+	int middle = left + (pointSize * 0.5f);
+	Hull leftHull = calculateHull(points, left, middle);
+	Hull rightHull = calculateHull(points, middle, right);
 	Hull hull = merge(leftHull, rightHull);
 	return hull;
 }
 
-Hull generateSmallestHull(std::vector<Point>& points)
+Hull generateSmallestHull(std::vector<Point>& points, int left, int right)
 {
+	int pointSize = right - left;
 	Hull hull = Hull();
-	if (points.size() == 1) {
-		Node* node = new Node(points[0]);
+	
+	if (pointSize == 2) {
+		Node* leftNode = new Node(points[left]);
+		Node* rightNode = new Node(points[right - 1]);
+		leftNode->clockwiseNext = rightNode;
+		leftNode->counterclockNext = rightNode;
+		rightNode->clockwiseNext = leftNode;
+		rightNode->counterclockNext = leftNode;
+		hull.left = leftNode;
+		hull.right = rightNode;
+	}
+	else if(pointSize==3) {
+		Node* leftNode = new Node(points[left]);
+		Node* middleNode = new Node(points[left + 1]);
+		Node* rightNode = new Node(points[right - 1]);
+
+		// Check if middle node is up or down to determine neighbors.
+		bool middleIsUp = isPointLeftOfLine(Line(leftNode, rightNode), middleNode);
+
+		leftNode->clockwiseNext = middleIsUp ? middleNode : rightNode;
+		leftNode->counterclockNext = middleIsUp ? rightNode : middleNode;
+		middleNode->clockwiseNext = middleIsUp ? rightNode : leftNode;
+		middleNode->counterclockNext = middleIsUp ? leftNode : rightNode;
+		rightNode->clockwiseNext = middleIsUp ? leftNode : middleNode;
+		rightNode->counterclockNext = middleIsUp ? middleNode : leftNode;
+
+		hull.left = leftNode;
+		hull.right = rightNode;
+	}
+	else {
+		Node* node = new Node(points[left]);
 		node->clockwiseNext = node;
 		node->counterclockNext = node;
 		hull.left = node;
 		hull.right = node;
 	}
-	else if (points.size() == 2) {
-		Node* left = new Node(points[0]);
-		Node* right = new Node(points[1]);
-		left->clockwiseNext = right;
-		left->counterclockNext = right;
-		right->clockwiseNext = left;
-		right->counterclockNext = left;
-		hull.left = left;
-		hull.right = right;
-	}
-	else {
-		Node* left = new Node(points[0]);
-		Node* middle = new Node(points[1]);
-		Node* right = new Node(points[2]);
-
-		// Check if middle node is up or down to determine neighbors.
-		bool middleIsUp = isPointLeftOfLine(Line(left, right), middle);
-
-		left->clockwiseNext = middleIsUp ? middle : right;
-		left->counterclockNext = middleIsUp ? right : middle;
-		middle->clockwiseNext = middleIsUp ? right : left;
-		middle->counterclockNext = middleIsUp ? left : right;
-		right->clockwiseNext = middleIsUp ? left : middle;
-		right->counterclockNext = middleIsUp ? middle : left;
-
-		hull.left = left;
-		hull.right = right;
-	}
 	return hull;
 }
 
-Hull merge(Hull left, Hull right) {
+Hull merge(Hull& left, Hull& right) {
 
 	//finding both tangents
 	auto upperTangent = findUpperTangentOfHulls(left, right, left.right, right.left);
-
 	auto lowerTangent = findUpperTangentOfHulls(right, left, right.left, left.right);
 
-	if (upperTangent.first != lowerTangent.second) {
+	//memory managment makes it run slower obviously
+	/*if (upperTangent.first != lowerTangent.second) {
 		//deleting nodes that are not connected to the new hull anymore
 		auto currentNode = upperTangent.first->clockwiseNext;
 		while (currentNode != lowerTangent.second) {
@@ -397,7 +382,7 @@ Hull merge(Hull left, Hull right) {
 			currentNode = currentNode->clockwiseNext;
 			delete deleteNode;
 		}
-	}
+	}*/
 
 	//connecting points on both tangents to each other, so the hull is correctly connected
 	upperTangent.first->clockwiseNext = upperTangent.second;
@@ -421,7 +406,7 @@ Hull merge(Hull left, Hull right) {
 	return newHull;
 }
 
-Line findUpperTangentOfHulls(Hull left, Hull right, Node* leftRight, Node* rightLeft) {
+Line findUpperTangentOfHulls(Hull& left, Hull& right, Node* leftRight, Node* rightLeft) {
 
 	//starting with the line connecting the opposite extreme points of both hulls
 	Line upperTangent(leftRight, rightLeft);
@@ -437,9 +422,7 @@ Line findUpperTangentOfHulls(Hull left, Hull right, Node* leftRight, Node* right
 			upperTangent.first = upperTangent.first->counterclockNext;
 			//and check again
 			isUpperTangentOfLeft = isUpperTangentOfHull(upperTangent, left);
-
 		}
-
 		//is new line tangent of right hull
 		isUpperTangentOfRight = isUpperTangentOfHull(upperTangent, right);
 		//if its not
@@ -456,15 +439,17 @@ Line findUpperTangentOfHulls(Hull left, Hull right, Node* leftRight, Node* right
 	return upperTangent;
 }
 
-bool isUpperTangentOfHull(Line tangent, Hull hull) {
+bool isUpperTangentOfHull(Line& tangent, Hull& hull) {
 
-	auto currentPoint = hull.left;
 
 	// TODO: not needed if we only allow unique points
-	if (tangent.first->point.X == tangent.second->point.X && tangent.first->point.Y == tangent.second->point.Y)
-		return false;
+	// removing for now
+	//if (tangent.first->point.X == tangent.second->point.X && tangent.first->point.Y == tangent.second->point.Y)
+		//return false;
 
-	//iterating over the whole hull
+	//iterating over the upper hull
+
+	auto currentPoint = hull.left;
 	do {
 		//if a point is left of the line, life cannot be upper tangent of whole whole
 		if (isPointLeftOfLine(tangent, currentPoint)) {
@@ -481,7 +466,7 @@ bool isUpperTangentOfHull(Line tangent, Hull hull) {
 Hull calculateHullVisual(std::vector<Point>& points, Scene& scene)
 {
 	if (points.size() <= 3) {
-		return generateSmallestHull(points);
+		return generateSmallestHullVisual(points, scene);
 	}
 	unsigned int half = points.size() / 2;
 	std::vector<Point> left(points.begin(), points.begin() + half);
