@@ -63,8 +63,8 @@ bool isPointLeftOfLine(Line line, Node* point);
 bool visualMode = false;
 bool drawMode = false;
 std::string filePath = "";
-//std::string filePath = "..\\Testcases\\TwoTwoPointEdges.txt";
-int pointAmount = 1000000;
+//std::string filePath = "..\\Testcases\\LineVertical.txt";
+int pointAmount = 100;
 
 int main(int argc, char* argv[])
 {
@@ -338,13 +338,22 @@ Hull generateSmallestHull(std::vector<Point>& points, int left, int right)
 
 		// Check if middle node is up or down to determine neighbors.
 		bool middleIsUp = isPointLeftOfLine(Line(leftNode, rightNode), middleNode);
-
-		leftNode->clockwiseNext = middleIsUp ? middleNode : rightNode;
-		leftNode->counterclockNext = middleIsUp ? rightNode : middleNode;
-		middleNode->clockwiseNext = middleIsUp ? rightNode : leftNode;
-		middleNode->counterclockNext = middleIsUp ? leftNode : rightNode;
-		rightNode->clockwiseNext = middleIsUp ? leftNode : middleNode;
-		rightNode->counterclockNext = middleIsUp ? middleNode : leftNode;
+		if (middleIsUp) {
+			leftNode->clockwiseNext = middleNode;
+			leftNode->counterclockNext = rightNode;
+			middleNode->clockwiseNext = rightNode;
+			middleNode->counterclockNext = leftNode;
+			rightNode->clockwiseNext = leftNode;
+			rightNode->counterclockNext = middleNode;
+		}
+		else {
+			leftNode->clockwiseNext = rightNode;
+			leftNode->counterclockNext = middleNode;
+			middleNode->clockwiseNext = leftNode;
+			middleNode->counterclockNext = rightNode;
+			rightNode->clockwiseNext = middleNode;
+			rightNode->counterclockNext = leftNode;
+		}
 
 		hull.left = leftNode;
 		hull.right = rightNode;
