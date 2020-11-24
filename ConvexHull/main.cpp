@@ -62,7 +62,7 @@ bool visualIsUpperTangentOfHull(Line tangent, Hull hull, Scene& scene);
 bool isPointLeftOfLine(Line line, Node* point);
 #pragma endregion
 
-bool benchmarkMode = false;
+bool benchmarkMode = true;
 unsigned int benchmarkIterations = 3;
 unsigned int benchmarkRandomIterations = 2;
 
@@ -172,7 +172,7 @@ int main(int argc, char* argv[])
 void BenchmarkMode()
 {
 	// TODO: Add other point generations (Circle, Row, ...).
-	std::vector<unsigned int> pointAmounts = { 10,100,1000,10000,100000,1000000,10000000,10000000, 20000000 };
+	std::vector<unsigned int> pointAmounts = { 10,100,1000,10000,100000,1000000,10000000, 20000000 };
 	std::vector<double> averageTimes;
 	std::cout << "================== Random numbers ==================" << std::endl;
 	std::cout << "Number of Random Iterations: " << benchmarkRandomIterations << std::endl;
@@ -206,22 +206,22 @@ void BenchmarkMode()
 				// Save time.
 				std::chrono::duration<double> time = (end - start);
 				randomIterationTime += time;
-				amountIterationTime += time;
 				std::cout << "------Iteration " << j + 1 << ": " << time.count() << " seconds" << std::endl;
+
+				// Clean-up before next iteration.
+				Node* node = hull.left->clockwiseNext;
+				while (node->clockwiseNext != hull.left)
+				{
+					auto deleteNode = node;
+					node = node->clockwiseNext;
+					delete deleteNode;
+				}
+				delete hull.left;
 			}
 			std::cout << "---Random iteration average: " << randomIterationTime.count() / benchmarkIterations << " seconds" << std::endl;
-
-			// Clean-up before next iteration.
-			Node* node = hull.left->clockwiseNext;
-			while (node->clockwiseNext != hull.left)
-			{
-				auto deleteNode = node;
-				node = node->clockwiseNext;
-				delete deleteNode;
-			}
-			delete hull.left;
+			amountIterationTime += randomIterationTime / benchmarkIterations;
 		}
-		double averageTime = amountIterationTime.count() / (benchmarkIterations * benchmarkRandomIterations);
+		double averageTime = amountIterationTime.count() / benchmarkRandomIterations;
 		averageTimes.push_back(averageTime);
 		std::cout << "Complete average time: " << averageTime << " seconds" << std::endl << std::endl;
 	}
@@ -306,8 +306,8 @@ void handleArguments(int argc, char* argv[])
 			if (argData.empty() || argData2.empty())
 				showWrongArguments();
 			benchmarkMode = true;
-			benchmarkIterations = std::stoi(argData);
-			benchmarkRandomIterations = std::stoi(argData2);
+			benchmarkRandomIterations = std::stoi(argData);
+			benchmarkIterations = std::stoi(argData2);
 			break;
 		case ArgumentType::HELP:
 			showHelp();
@@ -329,12 +329,12 @@ void showWrongArguments()
 
 void showHelp()
 {
-	std::cout << "--load <file> \t\t\t\t-> Filename to read from." << std::endl;
-	std::cout << "--points [-p] <numberOfPoints> \t\t-> Number of random points to be generated." << std::endl;
-	std::cout << "--visual [-v] \t\t\t\t-> Show visualization." << std::endl;
-	std::cout << "--draw \t\t\t\t\t-> Allows the user to add points with the mouse." << std::endl;
-	std::cout << "--benchmark <iterations> <randomIterations> -> Runs a benchmark by calculating the hull with different amounts of points and multiple iterations." << std::endl;
-	std::cout << "--help \t\t\t\t\t-> Prints out this message." << std::endl;
+	std::cout << "--load <file> \t\t\t\t\t-> Filename to read from." << std::endl;
+	std::cout << "--points [-p] <numberOfPoints> \t\t\t-> Number of random points to be generated." << std::endl;
+	std::cout << "--visual [-v] \t\t\t\t\t-> Show visualization." << std::endl;
+	std::cout << "--draw \t\t\t\t\t\t-> Allows the user to add points with the mouse." << std::endl;
+	std::cout << "--benchmark <randomIterations> <iterations> \t-> Runs a benchmark by calculating the hull with different amounts of points and multiple iterations." << std::endl;
+	std::cout << "--help \t\t\t\t\t\t-> Prints out this message." << std::endl;
 }
 #pragma endregion
 
