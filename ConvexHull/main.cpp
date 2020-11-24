@@ -10,8 +10,8 @@
 #include <math.h>
 #include <set>
 
-#define WINDOW_WIDTH 800
-#define WINDOW_HEIGTH 600
+#define WINDOW_WIDTH 1200
+#define WINDOW_HEIGTH 800
 #define POINT_GENERATION_BORDER 10
 
 #define DRAW_GRID_SIZE 10
@@ -19,7 +19,7 @@
 // Delimiter that defines the position of a point in a file (e.g. 10,20).
 #define DATA_DELIMITER ','
 
-enum class ArgumentType { LOAD, POINT_AMOUNT, VISUAL_MODE, DRAW_MODE, HELP };
+enum class ArgumentType { LOAD, POINT_AMOUNT, VISUAL_MODE, DRAW_MODE, BENCHMARK_MODE, HELP };
 
 std::map<std::string, ArgumentType> argumentMap{
 	{"--load", ArgumentType::LOAD},
@@ -28,11 +28,13 @@ std::map<std::string, ArgumentType> argumentMap{
 	{"--visual", ArgumentType::VISUAL_MODE},
 	{"-v", ArgumentType::VISUAL_MODE},
 	{"--draw", ArgumentType::DRAW_MODE},
+	{"--benchmark", ArgumentType::BENCHMARK_MODE},
 	{"--help", ArgumentType::HELP},
 };
 
 
 #pragma region Function declarations
+void BenchmarkMode();
 void DivideAndConquer(std::vector<Point>& points, Scene& scene);
 //Setup functions
 void handleArguments(int argc, char* argv[]);
@@ -60,8 +62,13 @@ bool visualIsUpperTangentOfHull(Line tangent, Hull hull, Scene& scene);
 bool isPointLeftOfLine(Line line, Node* point);
 #pragma endregion
 
+bool benchmarkMode = false;
+unsigned int benchmarkIterations = 3;
+unsigned int benchmarkRandomIterations = 2;
+
 bool visualMode = false;
 bool drawMode = false;
+
 std::string filePath = "";
 //std::string filePath = "..\\Testcases\\LineVertical.txt";
 int pointAmount = 100;
@@ -69,6 +76,12 @@ int pointAmount = 100;
 int main(int argc, char* argv[])
 {
 	handleArguments(argc, argv);
+
+	if (benchmarkMode) {
+		BenchmarkMode();
+		return 0;
+	}
+
 	sf::RenderWindow window(sf::VideoMode(WINDOW_WIDTH, WINDOW_HEIGTH), "Divide and Conquer");
 	Scene scene(window);
 
@@ -156,6 +169,75 @@ int main(int argc, char* argv[])
 	//TODO: memory cleanup
 }
 
+void BenchmarkMode()
+{
+	// TODO: Add other point generations (Circle, Row, ...).
+	std::vector<unsigned int> pointAmounts = { 10,100,1000,10000,100000,1000000,10000000,10000000, 20000000 };
+	std::vector<double> averageTimes;
+	std::cout << "================== Random numbers ==================" << std::endl;
+	std::cout << "Number of Random Iterations: " << benchmarkRandomIterations << std::endl;
+	std::cout << "Number of Iterations (per random iteration): " << benchmarkIterations << std::endl;
+	std::cout << "====================================================" << std::endl << std::endl;
+	std::chrono::duration<double> amountIterationTime = std::chrono::duration<double>();
+	for (unsigned int n = 0; n < pointAmounts.size(); n++)
+	{
+		unsigned int pointAmount = pointAmounts[n];
+		std::cout << "Point amount: " << pointAmount;
+		// Set random seed.
+		srand(time(NULL));
+		for (unsigned int i = 0; i < benchmarkRandomIterations; i++)
+		{
+			// Calculate random values for this iteration.
+			std::vector<Point> points = generateRandomPoints(pointAmount);
+			// Sort them.
+			std::sort(points.begin(), points.end(), [](Point& a, Point& b) { return a < b; });
+			// Remove duplicates.
+			points.erase(std::unique(points.begin(), points.end()), points.end());
+			std::cout << std::endl << "---Random iteration " << i + 1 << " (used points: " << points.size() << ")" << std::endl;
+			// Keep track of hull for clean-up.
+			Hull hull;
+			std::chrono::duration<double> randomIterationTime = std::chrono::duration<double>();
+			for (unsigned int j = 0; j < benchmarkIterations; j++)
+			{
+				// Calculate hull with random values n-times and avg the time.
+				auto start = std::chrono::high_resolution_clock::now();
+				hull = calculateHull(points, 0, points.size());
+				auto end = std::chrono::high_resolution_clock::now();
+				// Save time.
+				std::chrono::duration<double> time = (end - start);
+				randomIterationTime += time;
+				amountIterationTime += time;
+				std::cout << "------Iteration " << j + 1 << ": " << time.count() << " seconds" << std::endl;
+			}
+			std::cout << "---Random iteration average: " << randomIterationTime.count() / benchmarkIterations << " seconds" << std::endl;
+
+			// Clean-up before next iteration.
+			Node* node = hull.left->clockwiseNext;
+			while (node->clockwiseNext != hull.left)
+			{
+				auto deleteNode = node;
+				node = node->clockwiseNext;
+				delete deleteNode;
+			}
+			delete hull.left;
+		}
+		double averageTime = amountIterationTime.count() / (benchmarkIterations * benchmarkRandomIterations);
+		averageTimes.push_back(averageTime);
+		std::cout << "Complete average time: " << averageTime << " seconds" << std::endl << std::endl;
+	}
+	// Print out summary.
+	std::cout << "===================== Summary ======================" << std::endl;
+	for (unsigned int i = 0; i < pointAmounts.size(); i++)
+	{
+		std::cout << "Number of Points: " << pointAmounts[i] << " - " << "Time: " << averageTimes[i];
+		if (i != 0)
+			std::cout << " -> factor: " << (pointAmounts[i] / pointAmounts[i - 1]) / (averageTimes[i] / averageTimes[i - 1]);
+
+		std::cout << std::endl;
+	}
+	std::cout << "====================================================" << std::endl;
+}
+
 void DivideAndConquer(std::vector<Point>& points, Scene& scene)
 {
 	//TODO: Better sorting algorithm (quicksort?).
@@ -198,6 +280,7 @@ void handleArguments(int argc, char* argv[])
 	{
 		std::string argType = std::string(argv[i]);
 		std::string argData = i + 1 < argc ? std::string(argv[i + 1]) : std::string();
+		std::string argData2 = i + 2 < argc ? std::string(argv[i + 1]) : std::string();
 
 		switch (argumentMap[argType])
 		{
@@ -219,6 +302,13 @@ void handleArguments(int argc, char* argv[])
 		case ArgumentType::DRAW_MODE:
 			drawMode = true;
 			break;
+		case ArgumentType::BENCHMARK_MODE:
+			if (argData.empty() || argData2.empty())
+				showWrongArguments();
+			benchmarkMode = true;
+			benchmarkIterations = std::stoi(argData);
+			benchmarkRandomIterations = std::stoi(argData2);
+			break;
 		case ArgumentType::HELP:
 			showHelp();
 			std::exit(0);
@@ -239,11 +329,12 @@ void showWrongArguments()
 
 void showHelp()
 {
-	std::cout << "--load <file> \t\t\t-> Filename to read from." << std::endl;
-	std::cout << "--points [-p] <numberOfPoints> \t-> Number of random points to be generated." << std::endl;
-	std::cout << "--visual [-v] \t\t\t-> Show visualization." << std::endl;
-	std::cout << "--draw \t\t\t\t-> Allows the user to add points with the mouse." << std::endl;
-	std::cout << "--help \t\t\t\t-> Prints out this message." << std::endl;
+	std::cout << "--load <file> \t\t\t\t-> Filename to read from." << std::endl;
+	std::cout << "--points [-p] <numberOfPoints> \t\t-> Number of random points to be generated." << std::endl;
+	std::cout << "--visual [-v] \t\t\t\t-> Show visualization." << std::endl;
+	std::cout << "--draw \t\t\t\t\t-> Allows the user to add points with the mouse." << std::endl;
+	std::cout << "--benchmark <iterations> <randomIterations> -> Runs a benchmark by calculating the hull with different amounts of points and multiple iterations." << std::endl;
+	std::cout << "--help \t\t\t\t\t-> Prints out this message." << std::endl;
 }
 #pragma endregion
 
@@ -272,11 +363,10 @@ std::vector<Point> generatePointsFromFile(const std::string& filePath)
 std::vector<Point> generateRandomPoints(unsigned int amount)
 {
 	std::vector<Point> points;
-	srand(1);
 	for (int i = 0; i < amount; i++) {
 		//TODO: use better rand function
-		float x = POINT_GENERATION_BORDER + static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / (WINDOW_WIDTH- POINT_GENERATION_BORDER - POINT_GENERATION_BORDER)));
-		float y = POINT_GENERATION_BORDER + static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / (WINDOW_HEIGTH- POINT_GENERATION_BORDER - POINT_GENERATION_BORDER)));
+		float x = POINT_GENERATION_BORDER + static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / (WINDOW_WIDTH - POINT_GENERATION_BORDER - POINT_GENERATION_BORDER)));
+		float y = POINT_GENERATION_BORDER + static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / (WINDOW_HEIGTH - POINT_GENERATION_BORDER - POINT_GENERATION_BORDER)));
 
 		Point point(x, y);
 		points.push_back(point);
@@ -320,7 +410,7 @@ Hull generateSmallestHull(std::vector<Point>& points, int left, int right)
 {
 	int pointSize = right - left;
 	Hull hull = Hull();
-	
+
 	if (pointSize == 2) {
 		Node* leftNode = new Node(points[left]);
 		Node* rightNode = new Node(points[right - 1]);
@@ -331,7 +421,7 @@ Hull generateSmallestHull(std::vector<Point>& points, int left, int right)
 		hull.left = leftNode;
 		hull.right = rightNode;
 	}
-	else if(pointSize==3) {
+	else if (pointSize == 3) {
 		Node* leftNode = new Node(points[left]);
 		Node* middleNode = new Node(points[left + 1]);
 		Node* rightNode = new Node(points[right - 1]);
@@ -375,7 +465,7 @@ Hull merge(Hull& left, Hull& right) {
 	auto lowerTangent = findUpperTangentOfHulls(right, left, right.left, left.right);
 
 	//memory managment makes it run slower obviously
-	/*if (upperTangent.first != lowerTangent.second) {
+	if (upperTangent.first != lowerTangent.second) {
 		//deleting nodes that are not connected to the new hull anymore
 		auto currentNode = upperTangent.first->clockwiseNext;
 		while (currentNode != lowerTangent.second) {
@@ -391,7 +481,7 @@ Hull merge(Hull& left, Hull& right) {
 			currentNode = currentNode->clockwiseNext;
 			delete deleteNode;
 		}
-	}*/
+	}
 
 	//connecting points on both tangents to each other, so the hull is correctly connected
 	upperTangent.first->clockwiseNext = upperTangent.second;
