@@ -4,6 +4,8 @@
 
 #include "datastructures.h"
 #include "scene.h"
+#include "boost/random.hpp"
+#include "boost/generator_iterator.hpp"
 
 #include <fstream>
 #define _USE_MATH_DEFINES
@@ -66,7 +68,7 @@ bool visualIsUpperTangentOfHull(Line tangent, Hull hull, Scene& scene);
 bool isPointLeftOfLine(Line line, Node* point);
 #pragma endregion
 
-bool benchmarkMode = true;
+bool benchmarkMode = false;
 unsigned int benchmarkIterations = 3;
 unsigned int benchmarkRandomIterations = 2;
 
@@ -75,8 +77,11 @@ bool drawMode = false;
 
 std::string filePath = "";
 //std::string filePath = "..\\Testcases\\LineVertical.txt";
-int pointAmount = 100;
+int pointAmount = 1000;
 
+boost::mt19937 mersenneTwister;
+boost::uniform_int<> randomRange(0, RAND_MAX);
+boost::variate_generator< boost::mt19937, boost::uniform_int<> > mersenneTwisterRand(mersenneTwister, randomRange);
 
 int main(int argc, char* argv[])
 {
@@ -100,8 +105,8 @@ int main(int argc, char* argv[])
 		points = generatePointsFromFile(filePath);
 	else if (!drawMode)
 	{
-		points = generateRandomPoints(pointAmount);
-		//points = generatePointsOnCircle(pointAmount);
+		//points = generateRandomPoints(pointAmount);
+		points = generatePointsOnCircle(pointAmount);
 		//points = generatePointsInRectangle(pointAmount);
 		//points = generatePointsOnVerticalLine(pointAmount);
 		//points = generatePointsOnHorizontalLine(pointAmount);
@@ -218,7 +223,8 @@ void BenchmarkMode(BenchmarkType mode, bool verbose)
 			std::cout << "Point amount: " << pointAmount;
 		}
 		// Set random seed.
-		srand(time(NULL));
+		mersenneTwister = boost::mt19937(time(NULL));
+		mersenneTwisterRand = boost::variate_generator< boost::mt19937, boost::uniform_int<> >(mersenneTwister, randomRange);
 		for (unsigned int i = 0; i < benchmarkRandomIterations; i++)
 		{
 			// Calculate random values for this iteration.
@@ -293,7 +299,6 @@ void BenchmarkMode(BenchmarkType mode, bool verbose)
 
 void DivideAndConquer(std::vector<Point>& points, Scene& scene)
 {
-	//TODO: Better sorting algorithm (quicksort?).
 	// Sort points by their x coordinates. If on same x, sort by y.
 	std::sort(points.begin(), points.end(), [](Point& a, Point& b) { return a < b; });
 
@@ -416,9 +421,8 @@ std::vector<Point> generateRandomPoints(unsigned int amount)
 {
 	std::vector<Point> points;
 	for (int i = 0; i < amount; i++) {
-		//TODO: use better rand function
-		float x = POINT_GENERATION_BORDER + static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / (WINDOW_WIDTH - POINT_GENERATION_BORDER - POINT_GENERATION_BORDER)));
-		float y = POINT_GENERATION_BORDER + static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / (WINDOW_HEIGTH - POINT_GENERATION_BORDER - POINT_GENERATION_BORDER)));
+		float x = POINT_GENERATION_BORDER + static_cast <float> (mersenneTwisterRand()) / (static_cast <float> (RAND_MAX / (WINDOW_WIDTH - POINT_GENERATION_BORDER - POINT_GENERATION_BORDER)));
+		float y = POINT_GENERATION_BORDER + static_cast <float> (mersenneTwisterRand()) / (static_cast <float> (RAND_MAX / (WINDOW_HEIGTH - POINT_GENERATION_BORDER - POINT_GENERATION_BORDER)));
 
 		Point point(x, y);
 		points.push_back(point);
@@ -429,10 +433,10 @@ std::vector<Point> generateRandomPoints(unsigned int amount)
 std::vector<Point> generatePointsOnCircle(unsigned int amount)
 {
 	std::vector<Point> points;
-	float radius = 200;
+	float radius = (WINDOW_WIDTH < WINDOW_HEIGTH ? WINDOW_WIDTH:WINDOW_HEIGTH) *0.5f - POINT_GENERATION_BORDER - POINT_GENERATION_BORDER;
 	float periphery = M_PI * 2;
 	float steps = periphery / amount;
-	Point center = Point(WINDOW_WIDTH / 2, WINDOW_HEIGTH / 2);
+	Point center = Point(WINDOW_WIDTH / 2.0f, WINDOW_HEIGTH / 2.0f);
 	for (float angle = 0; angle <= periphery; angle += steps) {
 		Point point(center.X + radius * cos(angle), center.Y + radius * sin(angle));
 		points.push_back(point);
@@ -447,9 +451,8 @@ std::vector<Point> generatePointsInRectangle(unsigned int amount) {
 	points.push_back(Point(WINDOW_WIDTH - POINT_GENERATION_BORDER, WINDOW_HEIGTH - POINT_GENERATION_BORDER));
 	for (int i = 0; i < amount - 4; i++) {
 		float increasedBorder = POINT_GENERATION_BORDER + POINT_GENERATION_BORDER;
-		//TODO: use better rand function
-		float x = increasedBorder + static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / (WINDOW_WIDTH - increasedBorder - increasedBorder)));
-		float y = increasedBorder + static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / (WINDOW_HEIGTH - increasedBorder - increasedBorder)));
+		float x = increasedBorder + static_cast <float> (mersenneTwisterRand()) / (static_cast <float> (RAND_MAX / (WINDOW_WIDTH - increasedBorder - increasedBorder)));
+		float y = increasedBorder + static_cast <float> (mersenneTwisterRand()) / (static_cast <float> (RAND_MAX / (WINDOW_HEIGTH - increasedBorder - increasedBorder)));
 
 		Point point(x, y);
 		points.push_back(point);
@@ -460,8 +463,7 @@ std::vector<Point> generatePointsInRectangle(unsigned int amount) {
 std::vector<Point> generatePointsOnHorizontalLine(unsigned int amount) {
 	std::vector<Point> points;
 	for (int i = 0; i < amount; i++) {
-		//TODO: use better rand function
-		float x = POINT_GENERATION_BORDER + static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / (WINDOW_WIDTH - POINT_GENERATION_BORDER - POINT_GENERATION_BORDER)));
+		float x = POINT_GENERATION_BORDER + static_cast <float> (mersenneTwisterRand()) / (static_cast <float> (RAND_MAX / (WINDOW_WIDTH - POINT_GENERATION_BORDER - POINT_GENERATION_BORDER)));
 		float y = WINDOW_HEIGTH * 0.5f;
 		Point point(x, y);
 		points.push_back(point);
@@ -471,9 +473,8 @@ std::vector<Point> generatePointsOnHorizontalLine(unsigned int amount) {
 std::vector<Point> generatePointsOnVerticalLine(unsigned int amount) {
 	std::vector<Point> points;
 	for (int i = 0; i < amount; i++) {
-		//TODO: use better rand function
 		float x = WINDOW_WIDTH * 0.5f;
-		float y = POINT_GENERATION_BORDER + static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / (WINDOW_HEIGTH - POINT_GENERATION_BORDER - POINT_GENERATION_BORDER)));
+		float y = POINT_GENERATION_BORDER + static_cast <float> (mersenneTwisterRand()) / (static_cast <float> (RAND_MAX / (WINDOW_HEIGTH - POINT_GENERATION_BORDER - POINT_GENERATION_BORDER)));
 		Point point(x, y);
 		points.push_back(point);
 	}
