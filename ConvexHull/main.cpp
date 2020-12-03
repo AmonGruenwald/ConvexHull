@@ -32,9 +32,10 @@ std::map<std::string, ArgumentType> argumentMap{
 	{"--help", ArgumentType::HELP},
 };
 
+enum class BenchmarkType {RANDOM, CIRCLE, RECTANGLE, HORIZONTALLINE, VERTICALLINE};
 
 #pragma region Function declarations
-void BenchmarkMode();
+void BenchmarkMode(BenchmarkType mode = BenchmarkType::RANDOM, bool verbose = true);
 void DivideAndConquer(std::vector<Point>& points, Scene& scene);
 //Setup functions
 void handleArguments(int argc, char* argv[]);
@@ -42,7 +43,10 @@ void showWrongArguments();
 void showHelp();
 std::vector<Point> generatePointsFromFile(const std::string& filePath);
 std::vector<Point> generateRandomPoints(unsigned int amount);
-std::vector<Point> generateRandomPointsOnCircle(unsigned int amount);
+std::vector<Point> generatePointsOnCircle(unsigned int amount);
+std::vector<Point> generatePointsInRectangle(unsigned int amount);
+std::vector<Point> generatePointsOnHorizontalLine(unsigned int amount);
+std::vector<Point> generatePointsOnVerticalLine(unsigned int amount);
 
 //Optimized calculation functions
 Hull calculateHull(std::vector<Point>& points, int left, int right);
@@ -73,12 +77,17 @@ std::string filePath = "";
 //std::string filePath = "..\\Testcases\\LineVertical.txt";
 int pointAmount = 100;
 
+
 int main(int argc, char* argv[])
 {
 	handleArguments(argc, argv);
 
 	if (benchmarkMode) {
-		BenchmarkMode();
+		BenchmarkMode(BenchmarkType::RANDOM,false);
+		BenchmarkMode(BenchmarkType::CIRCLE,false);
+		BenchmarkMode(BenchmarkType::RECTANGLE, false);
+		BenchmarkMode(BenchmarkType::VERTICALLINE, false);
+		BenchmarkMode(BenchmarkType::HORIZONTALLINE, false);
 		return 0;
 	}
 
@@ -92,7 +101,10 @@ int main(int argc, char* argv[])
 	else if (!drawMode)
 	{
 		points = generateRandomPoints(pointAmount);
-		// points = generateRandomPointsOnCircle(pointAmount);
+		//points = generatePointsOnCircle(pointAmount);
+		//points = generatePointsInRectangle(pointAmount);
+		//points = generatePointsOnVerticalLine(pointAmount);
+		//points = generatePointsOnHorizontalLine(pointAmount);
 	}
 
 	if (!drawMode) {
@@ -165,35 +177,59 @@ int main(int argc, char* argv[])
 				scene.GoStepByStep = !scene.GoStepByStep;
 		}
 	}
-
-	//TODO: memory cleanup
 }
 
-void BenchmarkMode()
+void BenchmarkMode(BenchmarkType mode, bool verbose)
 {
-	// TODO: Add other point generations (Circle, Row, ...).
-	std::vector<unsigned int> pointAmounts = { 10,100,1000,10000,100000,1000000,10000000, 20000000 };
+	std::vector<unsigned int> pointAmounts = { 10,100,1000,10000,100000 ,1000000 ,10000000};
 	std::vector<double> averageTimes;
-	std::cout << "================== Random numbers ==================" << std::endl;
-	std::cout << "Number of Random Iterations: " << benchmarkRandomIterations << std::endl;
-	std::cout << "Number of Iterations (per random iteration): " << benchmarkIterations << std::endl;
-	std::cout << "====================================================" << std::endl << std::endl;
-	std::chrono::duration<double> amountIterationTime = std::chrono::duration<double>();
+	std::string modeString = "Random";
+	std::vector<Point>(*generatePoints)(unsigned int) = &generateRandomPoints;
+	switch (mode) {
+	case(BenchmarkType::CIRCLE):
+		modeString = "Circle";
+		generatePoints = &generatePointsOnCircle;
+		break;
+	case(BenchmarkType::RECTANGLE):
+		modeString = "Rectangle";
+		generatePoints = &generatePointsInRectangle;
+		break;
+	case(BenchmarkType::VERTICALLINE):
+		modeString = "VerticalLine";
+		generatePoints = &generatePointsOnVerticalLine;
+		break;
+	case(BenchmarkType::HORIZONTALLINE):
+		modeString = "HorizontalLine";
+		generatePoints = &generatePointsOnHorizontalLine;
+		break;
+	}
+
+	if (verbose) {
+		std::cout << "================== Random numbers ==================" << std::endl;
+		std::cout << "Number of Random Iterations: " << benchmarkRandomIterations << std::endl;
+		std::cout << "Number of Iterations (per random iteration): " << benchmarkIterations << std::endl;
+		std::cout << "====================================================" << std::endl << std::endl;
+	}
 	for (unsigned int n = 0; n < pointAmounts.size(); n++)
 	{
+		std::chrono::duration<double> amountIterationTime = std::chrono::duration<double>();
 		unsigned int pointAmount = pointAmounts[n];
-		std::cout << "Point amount: " << pointAmount;
+		if (verbose) {
+			std::cout << "Point amount: " << pointAmount;
+		}
 		// Set random seed.
 		srand(time(NULL));
 		for (unsigned int i = 0; i < benchmarkRandomIterations; i++)
 		{
 			// Calculate random values for this iteration.
-			std::vector<Point> points = generateRandomPoints(pointAmount);
+			std::vector<Point> points = generatePoints(pointAmount);
 			// Sort them.
 			std::sort(points.begin(), points.end(), [](Point& a, Point& b) { return a < b; });
 			// Remove duplicates.
 			points.erase(std::unique(points.begin(), points.end()), points.end());
-			std::cout << std::endl << "---Random iteration " << i + 1 << " (used points: " << points.size() << ")" << std::endl;
+			if (verbose) {
+				std::cout << std::endl << "---Random iteration " << i + 1 << " (used points: " << points.size() << ")" << std::endl;
+			}
 			// Keep track of hull for clean-up.
 			Hull hull;
 			std::chrono::duration<double> randomIterationTime = std::chrono::duration<double>();
@@ -206,8 +242,9 @@ void BenchmarkMode()
 				// Save time.
 				std::chrono::duration<double> time = (end - start);
 				randomIterationTime += time;
-				std::cout << "------Iteration " << j + 1 << ": " << time.count() << " seconds" << std::endl;
-
+				if(verbose){
+					std::cout << "------Iteration " << j + 1 << ": " << time.count() << " seconds" << std::endl;
+				}
 				// Clean-up before next iteration.
 				Node* node = hull.left->clockwiseNext;
 				while (node->clockwiseNext != hull.left)
@@ -218,24 +255,40 @@ void BenchmarkMode()
 				}
 				delete hull.left;
 			}
-			std::cout << "---Random iteration average: " << randomIterationTime.count() / benchmarkIterations << " seconds" << std::endl;
-			amountIterationTime += randomIterationTime / benchmarkIterations;
+			if(verbose){
+				std::cout << "---Random iteration average: " << randomIterationTime.count() / benchmarkIterations << " seconds" << std::endl;
+			}
+			amountIterationTime += (randomIterationTime / benchmarkIterations);
 		}
 		double averageTime = amountIterationTime.count() / benchmarkRandomIterations;
 		averageTimes.push_back(averageTime);
-		std::cout << "Complete average time: " << averageTime << " seconds" << std::endl << std::endl;
+		if(verbose){
+			std::cout << "Complete average time: " << averageTime << " seconds" << std::endl << std::endl;
+		}
 	}
 	// Print out summary.
 	std::cout << "===================== Summary ======================" << std::endl;
+	std::cout << "Mode: " <<modeString<< std::endl;
+	std::cout << "Average over: " <<(benchmarkRandomIterations *benchmarkIterations) << std::endl;
+	std::cout << "====================================================" << std::endl;
+	std::string filePath = "..\\Benchmarks\\"+modeString+".txt";
+	std::ofstream file(filePath);
 	for (unsigned int i = 0; i < pointAmounts.size(); i++)
 	{
+		if (file.is_open())
+		{
+				file << pointAmounts[i] << "," << averageTimes[i] << "\n";
+		}
 		std::cout << "Number of Points: " << pointAmounts[i] << " - " << "Time: " << averageTimes[i];
 		if (i != 0)
-			std::cout << " -> factor: " << (pointAmounts[i] / pointAmounts[i - 1]) / (averageTimes[i] / averageTimes[i - 1]);
+			std::cout << " -> factor: " <<  (averageTimes[i] / averageTimes[i - 1])/ (pointAmounts[i] / pointAmounts[i - 1]) ;
 
 		std::cout << std::endl;
 	}
+	file.close();
+	if(verbose){
 	std::cout << "====================================================" << std::endl;
+	}
 }
 
 void DivideAndConquer(std::vector<Point>& points, Scene& scene)
@@ -244,8 +297,7 @@ void DivideAndConquer(std::vector<Point>& points, Scene& scene)
 	// Sort points by their x coordinates. If on same x, sort by y.
 	std::sort(points.begin(), points.end(), [](Point& a, Point& b) { return a < b; });
 
-	//TODO: Fix it smarter maybe, i dont fucking know lol
-	//Quick fix removing duplicates because we still dont catch all edge cases
+	//Quick fix removing duplicates
 	points.erase(std::unique(points.begin(), points.end()), points.end());
 
 	scene.AddDefaultPoints(points);
@@ -374,7 +426,7 @@ std::vector<Point> generateRandomPoints(unsigned int amount)
 	}
 	return points;
 }
-std::vector<Point> generateRandomPointsOnCircle(unsigned int amount)
+std::vector<Point> generatePointsOnCircle(unsigned int amount)
 {
 	std::vector<Point> points;
 	float radius = 200;
@@ -383,6 +435,46 @@ std::vector<Point> generateRandomPointsOnCircle(unsigned int amount)
 	Point center = Point(WINDOW_WIDTH / 2, WINDOW_HEIGTH / 2);
 	for (float angle = 0; angle <= periphery; angle += steps) {
 		Point point(center.X + radius * cos(angle), center.Y + radius * sin(angle));
+		points.push_back(point);
+	}
+	return points;
+}
+std::vector<Point> generatePointsInRectangle(unsigned int amount) {
+	std::vector<Point> points;
+	points.push_back(Point(POINT_GENERATION_BORDER, POINT_GENERATION_BORDER));
+	points.push_back(Point(WINDOW_WIDTH - POINT_GENERATION_BORDER, POINT_GENERATION_BORDER));
+	points.push_back(Point(POINT_GENERATION_BORDER, WINDOW_HEIGTH - POINT_GENERATION_BORDER));
+	points.push_back(Point(WINDOW_WIDTH - POINT_GENERATION_BORDER, WINDOW_HEIGTH - POINT_GENERATION_BORDER));
+	for (int i = 0; i < amount - 4; i++) {
+		float increasedBorder = POINT_GENERATION_BORDER + POINT_GENERATION_BORDER;
+		//TODO: use better rand function
+		float x = increasedBorder + static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / (WINDOW_WIDTH - increasedBorder - increasedBorder)));
+		float y = increasedBorder + static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / (WINDOW_HEIGTH - increasedBorder - increasedBorder)));
+
+		Point point(x, y);
+		points.push_back(point);
+
+	}
+	return points;
+}
+std::vector<Point> generatePointsOnHorizontalLine(unsigned int amount) {
+	std::vector<Point> points;
+	for (int i = 0; i < amount; i++) {
+		//TODO: use better rand function
+		float x = POINT_GENERATION_BORDER + static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / (WINDOW_WIDTH - POINT_GENERATION_BORDER - POINT_GENERATION_BORDER)));
+		float y = WINDOW_HEIGTH * 0.5f;
+		Point point(x, y);
+		points.push_back(point);
+	}
+	return points;
+}
+std::vector<Point> generatePointsOnVerticalLine(unsigned int amount) {
+	std::vector<Point> points;
+	for (int i = 0; i < amount; i++) {
+		//TODO: use better rand function
+		float x = WINDOW_WIDTH * 0.5f;
+		float y = POINT_GENERATION_BORDER + static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / (WINDOW_HEIGTH - POINT_GENERATION_BORDER - POINT_GENERATION_BORDER)));
+		Point point(x, y);
 		points.push_back(point);
 	}
 	return points;
@@ -539,13 +631,6 @@ Line findUpperTangentOfHulls(Hull& left, Hull& right, Node* leftRight, Node* rig
 }
 
 bool isUpperTangentOfHull(Line& tangent, Hull& hull) {
-
-
-	// TODO: not needed if we only allow unique points
-	// removing for now
-	//if (tangent.first->point.X == tangent.second->point.X && tangent.first->point.Y == tangent.second->point.Y)
-		//return false;
-
 	//iterating over the upper hull
 
 	auto currentPoint = hull.left;
@@ -819,10 +904,6 @@ bool visualIsUpperTangentOfHull(Line tangent, Hull hull, Scene& scene) {
 
 	auto currentPoint = hull.left;
 	bool upper = true;
-
-	// TODO: not needed if we only allow unique points
-	if (tangent.first->point.X == tangent.second->point.X && tangent.first->point.Y == tangent.second->point.Y)
-		return false;
 
 	//iterating over the whole hull
 	do {
