@@ -12,8 +12,9 @@ public:
 
 	Scene(sf::RenderWindow& window) :window(window) {};
 
-	void Render() {
-		handleInput();
+	void Render(bool skipInput = false) {
+		if (!skipInput)
+			handleInput();
 
 		window.clear(sf::Color::White);
 		for (auto p : DefaultPoints) {
@@ -50,9 +51,6 @@ public:
 			displayLine(l, ErrorColor);
 		}
 		window.display();
-
-		if (IsAnimating)
-			std::this_thread::sleep_for(std::chrono::milliseconds(GoStepByStep ? stepByStepDelay : animationStepTime));
 	}
 
 	inline void AddDefaultPoint(Point point) { DefaultPoints.push_back(point); }
@@ -109,6 +107,15 @@ public:
 		ClearErrorLines();
 	}
 
+	void UpdateCursor() {
+		sf::Cursor cursor;
+		if (GoStepByStep)
+			cursor.loadFromSystem(sf::Cursor::Hand);
+		else
+			cursor.loadFromSystem(sf::Cursor::Arrow);
+		window.setMouseCursor(cursor);
+	}
+
 private:
 
 	sf::RenderWindow& window;
@@ -135,27 +142,47 @@ private:
 	std::vector<Line> ErrorLines;
 
 	void handleInput() {
-		// Activate animation.
-		if (sf::Keyboard::isKeyPressed(sf::Keyboard::A))
-			GoStepByStep = false;
-		// Deactivate animation -> enable step by step.
-		if (sf::Keyboard::isKeyPressed(sf::Keyboard::S))
-			GoStepByStep = true;
-		// Fast fowward to end.
-		if (sf::Keyboard::isKeyPressed(sf::Keyboard::F))
-			IsAnimating = false;
 
-		while (IsAnimating && GoStepByStep && !sf::Keyboard::isKeyPressed(sf::Keyboard::Space))
+		std::chrono::steady_clock::time_point startTime = std::chrono::high_resolution_clock::now();
+		std::chrono::steady_clock::time_point currentTime;
+		long long elapsedTime = 0;
+		sf::Event event;
+
+		bool wait = true;
+		while (wait && IsAnimating && elapsedTime < animationStepTime)
 		{
-			// Activate animation.
-			if (sf::Keyboard::isKeyPressed(sf::Keyboard::A))
-				GoStepByStep = false;
-			// Deactivate animation -> enable step by step.
-			if (sf::Keyboard::isKeyPressed(sf::Keyboard::S))
-				GoStepByStep = true;
-			// Fast fowward to end.
-			if (sf::Keyboard::isKeyPressed(sf::Keyboard::F))
-				IsAnimating = false;
+			currentTime = std::chrono::high_resolution_clock::now();
+			elapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count();
+
+			while (window.pollEvent(event) || GoStepByStep)
+			{
+				if (event.type == sf::Event::MouseEntered)
+					UpdateCursor();
+
+				currentTime = std::chrono::high_resolution_clock::now();
+				elapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count();
+
+				if (event.type == sf::Event::Closed) {
+					window.close();
+					std::exit(0);
+				}
+				// Go one step.
+				if (GoStepByStep && (event.type == sf::Event::KeyPressed) && (event.key.code == sf::Keyboard::Space) && elapsedTime >= stepByStepDelay) {
+					wait = false;
+					break;
+				}
+				// Activate/Deactivate step by step.
+				if ((event.type == sf::Event::KeyPressed) && (event.key.code == sf::Keyboard::S)) {
+					GoStepByStep = !GoStepByStep;
+					UpdateCursor();
+				}
+				// Fast forward to end.
+				if ((event.type == sf::Event::KeyPressed) && (event.key.code == sf::Keyboard::F)) {
+					IsAnimating = false;
+					wait = false;
+					break;
+				}
+			}
 		}
 	}
 
