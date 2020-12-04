@@ -156,16 +156,19 @@ private:
 
 			while (window.pollEvent(event) || GoStepByStep)
 			{
-				if (event.type == sf::Event::MouseEntered)
-					UpdateCursor();
-
-				currentTime = std::chrono::high_resolution_clock::now();
-				elapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count();
-
-				if (event.type == sf::Event::Closed) {
+				// Check if the user wants to quit.
+				if (event.type == sf::Event::Closed || (event.type == sf::Event::KeyPressed) && (event.key.code == sf::Keyboard::Escape)) {
 					window.close();
 					std::exit(0);
 				}
+
+				// Update mouse after it returns to the window.
+				if (event.type == sf::Event::MouseEntered)
+					UpdateCursor();
+
+				// Calculate elapsed time to determine if we should proceed (animation).
+				currentTime = std::chrono::high_resolution_clock::now();
+				elapsedTime = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - startTime).count();
 				// Go one step.
 				if (GoStepByStep && (event.type == sf::Event::KeyPressed) && (event.key.code == sf::Keyboard::Space) && elapsedTime >= stepByStepDelay) {
 					wait = false;
