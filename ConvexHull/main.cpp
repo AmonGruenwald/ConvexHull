@@ -16,12 +16,14 @@
 #define WINDOW_HEIGTH 800
 #define POINT_GENERATION_BORDER 10
 
+// Grid for drawing points with mouse.
 #define DRAW_GRID_SIZE 10
 
 // Delimiter that defines the position of a point in a file (e.g. 10,20).
 #define DATA_DELIMITER ','
 
-enum class ArgumentType { LOAD, POINT_AMOUNT, VISUAL_MODE, DRAW_MODE, BENCHMARK_MODE, HELP };
+enum class ArgumentType { LOAD, POINT_AMOUNT, VISUAL_MODE, DRAW_MODE, BENCHMARK_MODE, VERBOSE, RANDOM_MODE, HELP };
+enum class RandomModeType { RANDOM, CIRCLE, RECTANGLE, HORIZONTAL_LINE, VERTICAL_LINE };
 
 std::map<std::string, ArgumentType> argumentMap{
 	{"--load", ArgumentType::LOAD},
@@ -31,18 +33,23 @@ std::map<std::string, ArgumentType> argumentMap{
 	{"-v", ArgumentType::VISUAL_MODE},
 	{"--draw", ArgumentType::DRAW_MODE},
 	{"--benchmark", ArgumentType::BENCHMARK_MODE},
+	{"--verbose", ArgumentType::BENCHMARK_MODE},
+	{"--randomMode", ArgumentType::RANDOM_MODE},
 	{"--help", ArgumentType::HELP},
 };
 
-enum class BenchmarkType {RANDOM, CIRCLE, RECTANGLE, HORIZONTALLINE, VERTICALLINE};
 
 #pragma region Function declarations
-void BenchmarkMode(BenchmarkType mode = BenchmarkType::RANDOM, bool verbose = true);
+//Main functions
+void BenchmarkMode(RandomModeType mode = RandomModeType::RANDOM, bool verbose = true);
 void DivideAndConquer(std::vector<Point>& points, Scene& scene);
-//Setup functions
+
+//Argument handling functions
 void handleArguments(int argc, char* argv[]);
 void showWrongArguments();
 void showHelp();
+
+//Random generation functions
 std::vector<Point> generatePointsFromFile(const std::string& filePath);
 std::vector<Point> generateRandomPoints(unsigned int amount);
 std::vector<Point> generatePointsOnCircle(unsigned int amount);
@@ -68,15 +75,21 @@ bool visualIsUpperTangentOfHull(Line tangent, Hull hull, Scene& scene);
 bool isPointLeftOfLine(Line line, Node* point);
 #pragma endregion
 
+//Modes
+//Exectute benchmark with all random-generation types.
 bool benchmarkMode = false;
+//Show hull generation step by step or animated.
+bool visualMode = false;
+//Allow user to draw points.
+bool drawMode = false;
+// Show more detailed informations (used for benchmark).
+bool verbose = false;
+
 unsigned int benchmarkIterations = 3;
 unsigned int benchmarkRandomIterations = 2;
-
-bool visualMode = false;
-bool drawMode = false;
+RandomModeType randomMode = RandomModeType::RANDOM;
 
 std::string filePath = "";
-//std::string filePath = "..\\Testcases\\LineVertical.txt";
 int pointAmount = 1000;
 
 boost::mt19937 mersenneTwister;
@@ -87,12 +100,13 @@ int main(int argc, char* argv[])
 {
 	handleArguments(argc, argv);
 
+	// If benchmark mode, only do calc and skip SFML.
 	if (benchmarkMode) {
-		BenchmarkMode(BenchmarkType::RANDOM,false);
-		BenchmarkMode(BenchmarkType::CIRCLE,false);
-		BenchmarkMode(BenchmarkType::RECTANGLE, false);
-		BenchmarkMode(BenchmarkType::VERTICALLINE, false);
-		BenchmarkMode(BenchmarkType::HORIZONTALLINE, false);
+		BenchmarkMode(RandomModeType::RANDOM, verbose);
+		BenchmarkMode(RandomModeType::CIRCLE, verbose);
+		BenchmarkMode(RandomModeType::RECTANGLE, verbose);
+		BenchmarkMode(RandomModeType::VERTICAL_LINE, verbose);
+		BenchmarkMode(RandomModeType::HORIZONTAL_LINE, verbose);
 		return 0;
 	}
 
@@ -100,21 +114,39 @@ int main(int argc, char* argv[])
 	Scene scene(window);
 
 	std::vector<Point> points;
-	// Generate random points, if there are no
+	// Generate random points from file, if provided, otherwise render random points.
+	// If drawMode, simply don't render any points -> User will "generate" points.
 	if (!drawMode && filePath != "")
 		points = generatePointsFromFile(filePath);
 	else if (!drawMode)
 	{
-		//points = generateRandomPoints(pointAmount);
-		points = generatePointsOnCircle(pointAmount);
-		//points = generatePointsInRectangle(pointAmount);
-		//points = generatePointsOnVerticalLine(pointAmount);
-		//points = generatePointsOnHorizontalLine(pointAmount);
+		switch (randomMode)
+		{
+		case(RandomModeType::RANDOM):
+			points = generateRandomPoints(pointAmount);
+			break;
+		case(RandomModeType::CIRCLE):
+			points = generatePointsOnCircle(pointAmount);
+			break;
+		case(RandomModeType::RECTANGLE):
+			points = generatePointsInRectangle(pointAmount);
+			break;
+		case(RandomModeType::VERTICAL_LINE):
+			points = generatePointsOnVerticalLine(pointAmount);
+			break;
+		case(RandomModeType::HORIZONTAL_LINE):
+			points = generatePointsOnHorizontalLine(pointAmount);
+			break;
+		}
 	}
 
-	if (!drawMode) {
-		scene.AddDefaultPoints(points);
-		scene.Render();
+	scene.AddDefaultPoints(points);
+	scene.Render(true);
+
+	if (visualMode) {
+		scene.IsAnimating = true;
+		scene.GoStepByStep = true;
+		scene.UpdateCursor();
 	}
 
 	while (window.isOpen())
@@ -124,6 +156,9 @@ int main(int argc, char* argv[])
 		{
 			if (event.type == sf::Event::Closed)
 				window.close();
+
+			if (event.type == sf::Event::MouseEntered)
+				scene.UpdateCursor();
 
 			// Allow user drawing.
 			if (drawMode) {
@@ -153,7 +188,7 @@ int main(int argc, char* argv[])
 					}
 					scene.AddDefaultPoints(points);
 				}
-				scene.Render();
+				scene.Render(true);
 				scene.ClearWorkingPoints();
 			}
 
@@ -161,56 +196,56 @@ int main(int argc, char* argv[])
 			if ((event.type == sf::Event::KeyPressed) && (event.key.code == sf::Keyboard::R)) {
 				drawMode = true;
 				scene.ClearAll();
-				scene.IsAnimating = false;
-				scene.Render();
+				scene.Render(true);
 				points.clear();
 			}
 
 			// Start algorithm.
-			if ((event.type == sf::Event::KeyPressed) && (event.key.code == sf::Keyboard::Enter)) {
-				if (points.size() < 2) {
-					std::cerr << "At least 2 points are required!" << std::endl;
-					continue;
-				}
+			if ((event.type == sf::Event::KeyPressed) && (event.key.code == sf::Keyboard::Space)) {
 				scene.ClearAll();
-				scene.Render();
+				scene.Render(true);
 				DivideAndConquer(points, scene);
-				scene.IsAnimating = false;
 			}
 			// Activate/Deactivate step by step.
-			if ((event.type == sf::Event::KeyPressed) && (event.key.code == sf::Keyboard::S))
+			if ((event.type == sf::Event::KeyPressed) && (event.key.code == sf::Keyboard::S)) {
+				visualMode = true;
+				scene.IsAnimating = true;
 				scene.GoStepByStep = !scene.GoStepByStep;
+				scene.UpdateCursor();
+			}
 		}
 	}
 }
 
-void BenchmarkMode(BenchmarkType mode, bool verbose)
+#pragma region Main-Functions
+void BenchmarkMode(RandomModeType mode, bool verbose)
 {
-	std::vector<unsigned int> pointAmounts = { 10,100,1000,10000,100000 ,1000000 ,10000000};
+	std::vector<unsigned int> pointAmounts = { 10,100,1000,10000,100000 ,1000000 ,10000000 };
 	std::vector<double> averageTimes;
 	std::string modeString = "Random";
 	std::vector<Point>(*generatePoints)(unsigned int) = &generateRandomPoints;
 	switch (mode) {
-	case(BenchmarkType::CIRCLE):
+	case(RandomModeType::CIRCLE):
 		modeString = "Circle";
 		generatePoints = &generatePointsOnCircle;
 		break;
-	case(BenchmarkType::RECTANGLE):
+	case(RandomModeType::RECTANGLE):
 		modeString = "Rectangle";
 		generatePoints = &generatePointsInRectangle;
 		break;
-	case(BenchmarkType::VERTICALLINE):
+	case(RandomModeType::VERTICAL_LINE):
 		modeString = "VerticalLine";
 		generatePoints = &generatePointsOnVerticalLine;
 		break;
-	case(BenchmarkType::HORIZONTALLINE):
+	case(RandomModeType::HORIZONTAL_LINE):
 		modeString = "HorizontalLine";
 		generatePoints = &generatePointsOnHorizontalLine;
 		break;
 	}
 
 	if (verbose) {
-		std::cout << "================== Random numbers ==================" << std::endl;
+		std::cout << "==================== Calculation ===================" << std::endl;
+		std::cout << "Mode: " << modeString << std::endl;
 		std::cout << "Number of Random Iterations: " << benchmarkRandomIterations << std::endl;
 		std::cout << "Number of Iterations (per random iteration): " << benchmarkIterations << std::endl;
 		std::cout << "====================================================" << std::endl << std::endl;
@@ -248,7 +283,7 @@ void BenchmarkMode(BenchmarkType mode, bool verbose)
 				// Save time.
 				std::chrono::duration<double> time = (end - start);
 				randomIterationTime += time;
-				if(verbose){
+				if (verbose) {
 					std::cout << "------Iteration " << j + 1 << ": " << time.count() << " seconds" << std::endl;
 				}
 				// Clean-up before next iteration.
@@ -261,39 +296,39 @@ void BenchmarkMode(BenchmarkType mode, bool verbose)
 				}
 				delete hull.left;
 			}
-			if(verbose){
+			if (verbose) {
 				std::cout << "---Random iteration average: " << randomIterationTime.count() / benchmarkIterations << " seconds" << std::endl;
 			}
 			amountIterationTime += (randomIterationTime / benchmarkIterations);
 		}
 		double averageTime = amountIterationTime.count() / benchmarkRandomIterations;
 		averageTimes.push_back(averageTime);
-		if(verbose){
+		if (verbose) {
 			std::cout << "Complete average time: " << averageTime << " seconds" << std::endl << std::endl;
 		}
 	}
 	// Print out summary.
 	std::cout << "===================== Summary ======================" << std::endl;
-	std::cout << "Mode: " <<modeString<< std::endl;
-	std::cout << "Average over: " <<(benchmarkRandomIterations *benchmarkIterations) << std::endl;
+	std::cout << "Mode: " << modeString << std::endl;
+	std::cout << "Average over: " << (benchmarkRandomIterations * benchmarkIterations) << std::endl;
 	std::cout << "====================================================" << std::endl;
-	std::string filePath = "..\\Benchmarks\\"+modeString+".txt";
+	std::string filePath = "..\\Benchmarks\\" + modeString + ".txt";
 	std::ofstream file(filePath);
 	for (unsigned int i = 0; i < pointAmounts.size(); i++)
 	{
 		if (file.is_open())
 		{
-				file << pointAmounts[i] << "," << averageTimes[i] << "\n";
+			file << pointAmounts[i] << "," << averageTimes[i] << "\n";
 		}
 		std::cout << "Number of Points: " << pointAmounts[i] << " - " << "Time: " << averageTimes[i];
 		if (i != 0)
-			std::cout << " -> factor: " <<  (averageTimes[i] / averageTimes[i - 1])/ (pointAmounts[i] / pointAmounts[i - 1]) ;
+			std::cout << " -> factor: " << (averageTimes[i] / averageTimes[i - 1]) / (pointAmounts[i] / pointAmounts[i - 1]);
 
 		std::cout << std::endl;
 	}
 	file.close();
-	if(verbose){
-	std::cout << "====================================================" << std::endl;
+	if (verbose) {
+		std::cout << "====================================================" << std::endl;
 	}
 }
 
@@ -306,28 +341,34 @@ void DivideAndConquer(std::vector<Point>& points, Scene& scene)
 	points.erase(std::unique(points.begin(), points.end()), points.end());
 
 	scene.AddDefaultPoints(points);
-	scene.GoStepByStep = false;
-	scene.Render();
+	scene.Render(true);
 
 	Hull hull;
 	if (visualMode) {
-		scene.GoStepByStep = true;
-		scene.IsAnimating = true;
 		hull = calculateHullVisual(points, scene);
+		scene.IsAnimating = true;
 	}
 	else {
 		auto start = std::chrono::high_resolution_clock::now();
 		hull = calculateHull(points, 0, points.size());
 		auto end = std::chrono::high_resolution_clock::now();
 		std::cout << "Time: " << (std::chrono::duration_cast<std::chrono::microseconds>(end - start).count()) << " microseconds" << std::endl;
+		drawMode = true;
 	}
 
 	// Draw result
 	scene.ClearAll();
 	scene.AddDefaultPoints(points);
 	scene.AddCorrectHull(hull);
-	scene.Render();
+	Node* node = hull.left->clockwiseNext;
+	scene.AddCorrectPoint(hull.left->point);
+	while (node != hull.left) {
+		scene.AddCorrectPoint(node->point);
+		node = node->clockwiseNext;
+	}
+	scene.Render(true);
 }
+#pragma endregion 
 
 #pragma region Argument Handling
 void handleArguments(int argc, char* argv[])
@@ -337,8 +378,8 @@ void handleArguments(int argc, char* argv[])
 	{
 		std::string argType = std::string(argv[i]);
 		std::string argData = i + 1 < argc ? std::string(argv[i + 1]) : std::string();
-		std::string argData2 = i + 2 < argc ? std::string(argv[i + 1]) : std::string();
-
+		std::string argData2 = i + 2 < argc ? std::string(argv[i + 2]) : std::string();
+		int randomModeInt = 0;
 		switch (argumentMap[argType])
 		{
 		case ArgumentType::LOAD:
@@ -366,6 +407,18 @@ void handleArguments(int argc, char* argv[])
 			benchmarkRandomIterations = std::stoi(argData);
 			benchmarkIterations = std::stoi(argData2);
 			break;
+		case ArgumentType::VERBOSE:
+			verbose = true;
+			break;
+		case ArgumentType::RANDOM_MODE:
+			if (argData.empty())
+				showWrongArguments();
+			randomModeInt = std::stoi(argData);
+			if (randomModeInt < 0 || randomModeInt > 5)
+				showWrongArguments();
+			randomMode = static_cast<RandomModeType>(randomModeInt);
+			i++;
+			break;
 		case ArgumentType::HELP:
 			showHelp();
 			std::exit(0);
@@ -391,6 +444,8 @@ void showHelp()
 	std::cout << "--visual [-v] \t\t\t\t\t-> Show visualization." << std::endl;
 	std::cout << "--draw \t\t\t\t\t\t-> Allows the user to add points with the mouse." << std::endl;
 	std::cout << "--benchmark <randomIterations> <iterations> \t-> Runs a benchmark by calculating the hull with different amounts of points and multiple iterations." << std::endl;
+	std::cout << "--verbose \t\t\t\t\t-> Prints out more details." << std::endl;
+	std::cout << "--randomMode <[0-5]> \t\t\t\t-> Sets the random-generating mode. Possible choices (0-5):\n\t\t\t\t\t\t   RANDOM, CIRCLE, RECTANGLE, VERTICAL_LINE, HORIZONTAL_LINE" << std::endl;
 	std::cout << "--help \t\t\t\t\t\t-> Prints out this message." << std::endl;
 }
 #pragma endregion
@@ -407,8 +462,13 @@ std::vector<Point> generatePointsFromFile(const std::string& filePath)
 			std::cerr << "Could not open file. Please check the path." << std::endl;
 			std::exit(1);
 		}
-		// Go through each line and get x and y coordinates.
-		while (input.peek() != EOF) {
+		std::string numberOfPointsString;
+		std::getline(input, numberOfPointsString);
+		int numberOfPoints = std::stoi(numberOfPointsString);
+
+		for (unsigned int i = 0; i < numberOfPoints; i++)
+		{
+			// Go through each line and get x and y coordinates.
 			std::string xAsString, yAsString;
 			std::getline(input, xAsString, DATA_DELIMITER);
 			std::getline(input, yAsString);
@@ -417,6 +477,7 @@ std::vector<Point> generatePointsFromFile(const std::string& filePath)
 	}
 	return points;
 }
+
 std::vector<Point> generateRandomPoints(unsigned int amount)
 {
 	std::vector<Point> points;
@@ -433,7 +494,7 @@ std::vector<Point> generateRandomPoints(unsigned int amount)
 std::vector<Point> generatePointsOnCircle(unsigned int amount)
 {
 	std::vector<Point> points;
-	float radius = (WINDOW_WIDTH < WINDOW_HEIGTH ? WINDOW_WIDTH:WINDOW_HEIGTH) *0.5f - POINT_GENERATION_BORDER - POINT_GENERATION_BORDER;
+	float radius = (WINDOW_WIDTH < WINDOW_HEIGTH ? WINDOW_WIDTH : WINDOW_HEIGTH) * 0.5f - POINT_GENERATION_BORDER - POINT_GENERATION_BORDER;
 	float periphery = M_PI * 2;
 	float steps = periphery / amount;
 	Point center = Point(WINDOW_WIDTH / 2.0f, WINDOW_HEIGTH / 2.0f);
