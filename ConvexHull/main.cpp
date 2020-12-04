@@ -12,8 +12,6 @@
 #include <math.h>
 #include <set>
 
-#define WINDOW_WIDTH 1200
-#define WINDOW_HEIGTH 800
 #define POINT_GENERATION_BORDER 10
 
 // Grid for drawing points with mouse.
@@ -22,7 +20,7 @@
 // Delimiter that defines the position of a point in a file (e.g. 10,20).
 #define DATA_DELIMITER ','
 
-enum class ArgumentType { LOAD, POINT_AMOUNT, VISUAL_MODE, DRAW_MODE, BENCHMARK_MODE, VERBOSE, RANDOM_MODE, HELP };
+enum class ArgumentType { LOAD, POINT_AMOUNT, VISUAL_MODE, DRAW_MODE, BENCHMARK_MODE, VERBOSE, RANDOM_MODE, WINDOW_SIZE, HELP };
 enum class RandomModeType { RANDOM, CIRCLE, RECTANGLE, HORIZONTAL_LINE, VERTICAL_LINE };
 
 std::map<std::string, ArgumentType> argumentMap{
@@ -33,8 +31,9 @@ std::map<std::string, ArgumentType> argumentMap{
 	{"-v", ArgumentType::VISUAL_MODE},
 	{"--draw", ArgumentType::DRAW_MODE},
 	{"--benchmark", ArgumentType::BENCHMARK_MODE},
-	{"--verbose", ArgumentType::BENCHMARK_MODE},
+	{"--verbose", ArgumentType::VERBOSE},
 	{"--randomMode", ArgumentType::RANDOM_MODE},
+	{"--windowSize", ArgumentType::WINDOW_SIZE},
 	{"--help", ArgumentType::HELP},
 };
 
@@ -75,6 +74,12 @@ bool visualIsUpperTangentOfHull(Line tangent, Hull hull, Scene& scene);
 bool isPointLeftOfLine(Line line, Node* point);
 #pragma endregion
 
+int WINDOW_WIDTH = 1200;
+int WINDOW_HEIGTH = 800;
+
+std::string filePath = "";
+int pointAmount = 1000;
+
 //Modes
 //Exectute benchmark with all random-generation types.
 bool benchmarkMode = false;
@@ -88,9 +93,6 @@ bool verbose = false;
 unsigned int benchmarkIterations = 3;
 unsigned int benchmarkRandomIterations = 2;
 RandomModeType randomMode = RandomModeType::RANDOM;
-
-std::string filePath = "";
-int pointAmount = 1000;
 
 boost::mt19937 mersenneTwister;
 boost::uniform_int<> randomRange(0, RAND_MAX);
@@ -208,10 +210,21 @@ int main(int argc, char* argv[])
 			}
 			// Activate/Deactivate step by step.
 			if ((event.type == sf::Event::KeyPressed) && (event.key.code == sf::Keyboard::S)) {
+				drawMode = true;
 				visualMode = true;
 				scene.IsAnimating = true;
 				scene.GoStepByStep = !scene.GoStepByStep;
 				scene.UpdateCursor();
+			}
+			// Deactivate visual mode.
+			if ((event.type == sf::Event::KeyPressed) && (event.key.code == sf::Keyboard::D)) {
+				drawMode = false;
+				visualMode = false;
+				scene.IsAnimating = false;
+				scene.GoStepByStep = false;
+				scene.UpdateCursor();
+				scene.ClearWorkingPoints();
+				scene.Render(true);
 			}
 		}
 	}
@@ -220,7 +233,7 @@ int main(int argc, char* argv[])
 #pragma region Main-Functions
 void BenchmarkMode(RandomModeType mode, bool verbose)
 {
-	std::vector<unsigned int> pointAmounts = { 10,100,1000,10000,100000 ,1000000 ,10000000 };
+	std::vector<unsigned int> pointAmounts = { 10,100,1000,10000,100000 ,1000000 ,10000000, 20000000 };
 	std::vector<double> averageTimes;
 	std::string modeString = "Random";
 	std::vector<Point>(*generatePoints)(unsigned int) = &generateRandomPoints;
@@ -406,6 +419,7 @@ void handleArguments(int argc, char* argv[])
 			benchmarkMode = true;
 			benchmarkRandomIterations = std::stoi(argData);
 			benchmarkIterations = std::stoi(argData2);
+			i += 2;
 			break;
 		case ArgumentType::VERBOSE:
 			verbose = true;
@@ -418,6 +432,13 @@ void handleArguments(int argc, char* argv[])
 				showWrongArguments();
 			randomMode = static_cast<RandomModeType>(randomModeInt);
 			i++;
+			break;
+		case ArgumentType::WINDOW_SIZE:
+			if (argData.empty() || argData2.empty())
+				showWrongArguments();
+			WINDOW_WIDTH = std::stoi(argData);
+			WINDOW_HEIGTH = std::stoi(argData2);
+			i += 2;
 			break;
 		case ArgumentType::HELP:
 			showHelp();
@@ -432,21 +453,34 @@ void handleArguments(int argc, char* argv[])
 
 void showWrongArguments()
 {
-	std::cerr << "Wrong arguments. Use arguments as following:" << std::endl;
-	showHelp();
+	std::cerr << "Wrong arguments! Use --help to show possible arguments." << std::endl;
 	std::exit(1);
 }
 
 void showHelp()
 {
-	std::cout << "--load <file> \t\t\t\t\t-> Filename to read from." << std::endl;
-	std::cout << "--points [-p] <numberOfPoints> \t\t\t-> Number of random points to be generated." << std::endl;
-	std::cout << "--visual [-v] \t\t\t\t\t-> Show visualization." << std::endl;
-	std::cout << "--draw \t\t\t\t\t\t-> Allows the user to add points with the mouse." << std::endl;
-	std::cout << "--benchmark <randomIterations> <iterations> \t-> Runs a benchmark by calculating the hull with different amounts of points and multiple iterations." << std::endl;
-	std::cout << "--verbose \t\t\t\t\t-> Prints out more details." << std::endl;
-	std::cout << "--randomMode <[0-5]> \t\t\t\t-> Sets the random-generating mode. Possible choices (0-5):\n\t\t\t\t\t\t   RANDOM, CIRCLE, RECTANGLE, VERTICAL_LINE, HORIZONTAL_LINE" << std::endl;
-	std::cout << "--help \t\t\t\t\t\t-> Prints out this message." << std::endl;
+	std::cout << "=======================================" << std::endl;
+	std::cout << "========= Possible Arguments ==========" << std::endl;
+	std::cout << "=======================================" << std::endl;
+	std::cout << "--load <file>                                 -> Filename to read from." << std::endl;
+	std::cout << "--points [-p] <numberOfPoints>                -> Number of random points to be generated." << std::endl;
+	std::cout << "--visual [-v]                                 -> Show visualization." << std::endl;
+	std::cout << "--draw                                        -> Allows the user to add points with the mouse." << std::endl;
+	std::cout << "--benchmark <randomIterations> <iterations>   -> Runs a benchmark by calculating the hull with different amounts of points and multiple iterations." << std::endl;
+	std::cout << "--verbose                                     -> Prints out more details." << std::endl;
+	std::cout << "--randomMode <[0-5]>                          -> Sets the random-generating mode. Possible choices (0-5):\n\t\t\t\t\t\t RANDOM, CIRCLE, RECTANGLE, VERTICAL_LINE, HORIZONTAL_LINE" << std::endl;
+	std::cout << "--windowSize <width> <height>                 -> Sets the size of the SFML window AND the range for the random numbers." << std::endl;
+	std::cout << "--help                                        -> Prints out this message." << std::endl;
+	std::cout << std::endl;
+	std::cout << "=======================================" << std::endl;
+	std::cout << "============== Controls ===============" << std::endl;
+	std::cout << "=======================================" << std::endl;
+	std::cout << "S           -> Toggle \"Step by Step\" mode (Mouse-Hand -> Activated)" << std::endl;
+	std::cout << "D           -> Deactivate visual mode" << std::endl;
+	std::cout << "F           -> Fast-forward to end (while in visual mode)" << std::endl;
+	std::cout << "Space       -> Start calculation and/or go to next step" << std::endl;
+	std::cout << "Left Mouse  -> Add a point" << std::endl;
+	std::cout << "Right Mouse -> Remove a point" << std::endl;
 }
 #pragma endregion
 
@@ -494,13 +528,15 @@ std::vector<Point> generateRandomPoints(unsigned int amount)
 std::vector<Point> generatePointsOnCircle(unsigned int amount)
 {
 	std::vector<Point> points;
-	float radius = (WINDOW_WIDTH < WINDOW_HEIGTH ? WINDOW_WIDTH : WINDOW_HEIGTH) * 0.5f - POINT_GENERATION_BORDER - POINT_GENERATION_BORDER;
-	float periphery = M_PI * 2;
-	float steps = periphery / amount;
+	double radius = (WINDOW_WIDTH < WINDOW_HEIGTH ? WINDOW_WIDTH : WINDOW_HEIGTH) * 0.5 - POINT_GENERATION_BORDER - POINT_GENERATION_BORDER;
+	double periphery = M_PI * 2.0;
+	double steps = periphery / amount;
+	double angle = 0;
 	Point center = Point(WINDOW_WIDTH / 2.0f, WINDOW_HEIGTH / 2.0f);
-	for (float angle = 0; angle <= periphery; angle += steps) {
+	for (unsigned int i = 0; i < amount; i ++) {
 		Point point(center.X + radius * cos(angle), center.Y + radius * sin(angle));
 		points.push_back(point);
+		angle += steps;
 	}
 	return points;
 }
