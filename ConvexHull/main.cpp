@@ -13,10 +13,8 @@
 #include <set>
 
 #define POINT_GENERATION_BORDER 10
-
 // Grid for drawing points with mouse.
 #define DRAW_GRID_SIZE 10
-
 // Delimiter that defines the position of a point in a file (e.g. 10,20).
 #define DATA_DELIMITER ','
 
@@ -347,6 +345,11 @@ void BenchmarkMode(RandomModeType mode, bool verbose)
 
 void DivideAndConquer(std::vector<Point>& points, Scene& scene)
 {
+	if (points.empty()) {
+		std::cout << "No points provided." << std::endl;
+		return;
+	}
+
 	// Sort points by their x coordinates. If on same x, sort by y.
 	std::sort(points.begin(), points.end(), [](Point& a, Point& b) { return a < b; });
 
@@ -459,6 +462,7 @@ void showWrongArguments()
 
 void showHelp()
 {
+	std::cout << std::endl;
 	std::cout << "=======================================" << std::endl;
 	std::cout << "========= Possible Arguments ==========" << std::endl;
 	std::cout << "=======================================" << std::endl;
@@ -468,7 +472,7 @@ void showHelp()
 	std::cout << "--draw                                        -> Allows the user to add points with the mouse." << std::endl;
 	std::cout << "--benchmark <randomIterations> <iterations>   -> Runs a benchmark by calculating the hull with different amounts of points and multiple iterations." << std::endl;
 	std::cout << "--verbose                                     -> Prints out more details." << std::endl;
-	std::cout << "--randomMode <[0-5]>                          -> Sets the random-generating mode. Possible choices (0-5):\n\t\t\t\t\t\t RANDOM, CIRCLE, RECTANGLE, VERTICAL_LINE, HORIZONTAL_LINE" << std::endl;
+	std::cout << "--randomMode <[0-4]>                          -> Sets the random-generating mode. Possible choices (0-4):\n\t\t\t\t\t\t RANDOM, CIRCLE, RECTANGLE, VERTICAL_LINE, HORIZONTAL_LINE" << std::endl;
 	std::cout << "--windowSize <width> <height>                 -> Sets the size of the SFML window AND the range for the random numbers." << std::endl;
 	std::cout << "--help                                        -> Prints out this message." << std::endl;
 	std::cout << std::endl;
@@ -481,6 +485,7 @@ void showHelp()
 	std::cout << "Space       -> Start calculation and/or go to next step" << std::endl;
 	std::cout << "Left Mouse  -> Add a point" << std::endl;
 	std::cout << "Right Mouse -> Remove a point" << std::endl;
+	std::cout << std::endl;
 }
 #pragma endregion
 
@@ -496,6 +501,7 @@ std::vector<Point> generatePointsFromFile(const std::string& filePath)
 			std::cerr << "Could not open file. Please check the path." << std::endl;
 			std::exit(1);
 		}
+		// Get number of points in file
 		std::string numberOfPointsString;
 		std::getline(input, numberOfPointsString);
 		int numberOfPoints = std::stoi(numberOfPointsString);
@@ -511,7 +517,6 @@ std::vector<Point> generatePointsFromFile(const std::string& filePath)
 	}
 	return points;
 }
-
 std::vector<Point> generateRandomPoints(unsigned int amount)
 {
 	std::vector<Point> points;
@@ -533,7 +538,7 @@ std::vector<Point> generatePointsOnCircle(unsigned int amount)
 	double steps = periphery / amount;
 	double angle = 0;
 	Point center = Point(WINDOW_WIDTH / 2.0f, WINDOW_HEIGTH / 2.0f);
-	for (unsigned int i = 0; i < amount; i ++) {
+	for (unsigned int i = 0; i < amount; i++) {
 		Point point(center.X + radius * cos(angle), center.Y + radius * sin(angle));
 		points.push_back(point);
 		angle += steps;
@@ -760,19 +765,15 @@ Hull calculateHullVisual(std::vector<Point>& points, Scene& scene)
 	Hull leftHull;
 	Hull rightHull;
 
-	if (left.size() > 3) {
+	if (left.size() > 3)
 		leftHull = calculateHullVisual(left, scene);
-	}
-	else {
+	else
 		leftHull = generateSmallestHullVisual(left, scene);
-	}
 
-	if (right.size() > 3) {
+	if (right.size() > 3)
 		rightHull = calculateHullVisual(right, scene);
-	}
-	else {
+	else
 		rightHull = generateSmallestHullVisual(right, scene);
-	}
 
 	Hull hull = mergeVisual(leftHull, rightHull, scene);
 	return hull;
