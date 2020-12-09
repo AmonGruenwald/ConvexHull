@@ -10,7 +10,7 @@ struct Point {
 
 	bool operator<(const Point& rhs) const
 	{
-		return X == rhs.X ? Y < rhs.Y : X < rhs.X;
+		return X == rhs.X ? Y > rhs.Y : X < rhs.X;
 	}
 
 	bool operator==(const Point& rhs) const
@@ -30,8 +30,6 @@ struct Node {
 struct Hull {
 	Node* left = nullptr;
 	Node* right = nullptr;
-	void pushBack(Node* n) {};
-	void pushFront(Node* n) {};
 };
 
 typedef std::pair<Node*, Node*> Line;

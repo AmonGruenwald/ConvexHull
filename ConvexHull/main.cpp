@@ -679,17 +679,17 @@ Hull merge(Hull& left, Hull& right) {
 	}
 
 	//connecting points on both tangents to each other, so the hull is correctly connected
-	upperTangent.first->clockwiseNext = upperTangent.second;
-	upperTangent.second->counterclockNext = upperTangent.first;
+	lowerTangent.first->clockwiseNext = lowerTangent.second;
+	lowerTangent.second->counterclockNext = lowerTangent.first;
 
 	// Edge case "line": Connect to extremes to prevent infinite loop (missing second tangent -> missing path).
 	if (upperTangent.first == lowerTangent.second && upperTangent.second == lowerTangent.first) {
-		left.left->counterclockNext = right.right;
-		right.right->clockwiseNext = left.left;
+		left.left->clockwiseNext = right.right;
+		right.right->counterclockNext = left.left;
 	}
 	else {
-		lowerTangent.first->clockwiseNext = lowerTangent.second;
-		lowerTangent.second->counterclockNext = lowerTangent.first;
+		upperTangent.first->clockwiseNext = upperTangent.second;
+		upperTangent.second->counterclockNext = upperTangent.first;
 	}
 
 	//creating a new hull and setting left and right to corresponding values of previous hulls, so we dont have to sort again
@@ -827,8 +827,8 @@ Hull generateSmallestHullVisual(std::vector<Point>& points, Scene& scene)
 		scene.Render();
 		scene.ClearSecondWorkingLines();
 
+		// Check if middle node is up or down to determine neighbors.
 		bool middleIsUp = isPointLeftOfLine(Line(left, right), middle);
-
 		if (middleIsUp) {
 			scene.ClearWorkingPoints();
 			scene.ClearWorkingLines();
@@ -853,7 +853,7 @@ Hull generateSmallestHullVisual(std::vector<Point>& points, Scene& scene)
 			scene.Render();
 		}
 
-		// Check if middle node is up or down to determine neighbors.
+		
 
 
 		left->clockwiseNext = middleIsUp ? middle : right;
@@ -912,17 +912,17 @@ Hull mergeVisual(Hull left, Hull right, Scene& scene) {
 	}
 
 	//connecting points on both tangents to each other, so the hull is correctly connected
-	upperTangent.first->clockwiseNext = upperTangent.second;
-	upperTangent.second->counterclockNext = upperTangent.first;
+	lowerTangent.first->clockwiseNext = lowerTangent.second;
+	lowerTangent.second->counterclockNext = lowerTangent.first;
 
 	// Edge case "line": Connect to extremes to prevent infinite loop (missing second tangent -> missing path).
 	if (upperTangent.first == lowerTangent.second && upperTangent.second == lowerTangent.first) {
-		left.left->counterclockNext = right.right;
-		right.right->clockwiseNext = left.left;
+		left.left->clockwiseNext = right.right;
+		right.right->counterclockNext = left.left;
 	}
 	else {
-		lowerTangent.first->clockwiseNext = lowerTangent.second;
-		lowerTangent.second->counterclockNext = lowerTangent.first;
+		upperTangent.first->clockwiseNext = upperTangent.second;
+		upperTangent.second->counterclockNext = upperTangent.first;
 	}
 
 	//creating a new hull and setting left and right to corresponding values of previous hulls, so we dont have to sort again
